@@ -1,9 +1,15 @@
 package gdd.sprite;
 
 import static gdd.Global.*;
-import javax.swing.ImageIcon;
 
 public class Enemy extends Sprite {
+
+    protected double preciseX;
+    protected double preciseY;
+    protected double fallSpeed = 1.0;
+    protected double driftSpeed;
+    protected int health = 1;
+    protected int scoreValue = 100;
 
     // private Bomb bomb;
 
@@ -16,21 +22,35 @@ public class Enemy extends Sprite {
 
         this.x = x;
         this.y = y;
+        this.preciseX = x;
+        this.preciseY = y;
 
         // bomb = new Bomb(x, y);
 
-        var ii = new ImageIcon(IMG_ENEMY);
-
-        // Scale the image to use the global scaling factor
-        var scaledImage = ii.getImage().getScaledInstance(ii.getIconWidth() * SCALE_FACTOR,
-                ii.getIconHeight() * SCALE_FACTOR,
-                java.awt.Image.SCALE_SMOOTH);
-        setImage(scaledImage);
+        setImage(loadScaledImage(IMG_ENEMY, SCALE_FACTOR));
     }
 
     public void act(int direction) {
+        preciseX += driftSpeed;
+        preciseY += fallSpeed;
+        this.x = (int) preciseX;
+        this.y = (int) preciseY;
+    }
 
-        this.x += direction;
+    public void configure(double speed, double drift, int hitPoints, int points) {
+        fallSpeed = speed;
+        driftSpeed = drift;
+        health = Math.max(1, hitPoints);
+        scoreValue = points;
+    }
+
+    public boolean hit() {
+        health--;
+        return health <= 0;
+    }
+
+    public int getScoreValue() {
+        return scoreValue;
     }
 /* 
     public Bomb getBomb() {

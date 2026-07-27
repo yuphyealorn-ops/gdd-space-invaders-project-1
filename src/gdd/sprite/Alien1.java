@@ -9,7 +9,11 @@ public class Alien1 extends Enemy {
 
     public Alien1(int x, int y) {
         super(x, y);
-        // initEnemy(x, y);
+    }
+
+    public Alien1(int x, int y, double speed, double drift, int hitPoints, int points) {
+        super(x, y);
+        configure(speed, drift, hitPoints, points);
     }
 
     private void initEnemy(int x, int y) {
@@ -19,17 +23,15 @@ public class Alien1 extends Enemy {
 
         bomb = new Bomb(x, y);
 
-        var ii = new ImageIcon(IMG_ENEMY);
-
-        // Scale the image to use the global scaling factor
-        var scaledImage = ii.getImage().getScaledInstance(ii.getIconWidth() * SCALE_FACTOR,
-                ii.getIconHeight() * SCALE_FACTOR,
-                java.awt.Image.SCALE_SMOOTH);
-        setImage(scaledImage);
+        setImage(loadScaledImage(IMG_ENEMY, SCALE_FACTOR));
     }
 
     public void act(int direction) {
-        this.y ++;
+        super.act(direction);
+        if (x < 5 || x > BOARD_WIDTH - 45) {
+            driftSpeed = -driftSpeed;
+            preciseX = Math.max(5, Math.min(BOARD_WIDTH - 45, preciseX));
+        }
     }
 
     public Bomb getBomb() {
