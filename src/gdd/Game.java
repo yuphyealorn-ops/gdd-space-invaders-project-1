@@ -2,50 +2,62 @@ package gdd;
 
 import gdd.scene.Scene1;
 import gdd.scene.TitleScene;
+import java.awt.Dimension;
 import javax.swing.JFrame;
 
-public class Game extends JFrame  {
-
-    TitleScene titleScene;
-    Scene1 scene1;
+public class Game extends JFrame {
+    private TitleScene titleScene;
+    private Scene1 scene1;
 
     public Game() {
-        titleScene = new TitleScene(this);
-        scene1 = new Scene1(this);
-        initUI();
-        // loadTitle();
-        loadScene2();
+        setupWindow();
+        loadTitle();
     }
 
-    private void initUI() {
-
+    private void setupWindow() {
         setTitle("Space Invaders");
-        setSize(Global.BOARD_WIDTH, Global.BOARD_HEIGHT);
-
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(false);
+        getContentPane().setPreferredSize(
+                new Dimension(Global.BOARD_WIDTH, Global.BOARD_HEIGHT));
+        pack();
         setLocationRelativeTo(null);
-
     }
 
     public void loadTitle() {
+        if (scene1 != null) {
+            scene1.stop();
+        }
+
         getContentPane().removeAll();
-        // add(new Title(this));
+        titleScene = new TitleScene(this);
         add(titleScene);
         titleScene.start();
-        revalidate();
-        repaint();
+        refreshWindow();
     }
 
     public void loadScene1() {
-        // ....
+        loadGame(GameMode.CAMPAIGN);
     }
 
     public void loadScene2() {
+        loadGame(GameMode.CAMPAIGN);
+    }
+
+    public void loadGame(GameMode mode) {
         getContentPane().removeAll();
+        scene1 = new Scene1(this, mode);
         add(scene1);
-        titleScene.stop();
+
+        if (titleScene != null) {
+            titleScene.stop();
+        }
+
         scene1.start();
+        refreshWindow();
+    }
+
+    private void refreshWindow() {
         revalidate();
         repaint();
     }
