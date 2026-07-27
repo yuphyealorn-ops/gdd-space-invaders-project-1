@@ -1,0 +1,18 @@
+# frame,type,x,y
+# Type options: Alien1, SpeedUp, MultiShot
+# Enemies do not spawn at the start. One enemy appears every 100 frames.
+100,Alien1,100,0
+200,Alien1,200,0
+250,SpeedUp,90,0
+300,Alien1,300,0
+400,Alien1,400,0
+450,MultiShot,500,0
+500,Alien1,500,0
+600,Alien1,150,0
+700,Alien1,250,0
+800,Alien1,350,0
+850,SpeedUp,100,0
+900,Alien1,450,0
+1000,Alien1,550,0
+1100,Alien1,200,0
+1200,Alien1,400,0
