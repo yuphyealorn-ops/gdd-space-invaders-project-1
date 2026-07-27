@@ -5,7 +5,6 @@ import gdd.Game;
 import gdd.GameMode;
 import static gdd.Global.*;
 import java.awt.Color;
-import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Image;
 import java.awt.event.KeyAdapter;
@@ -21,6 +20,11 @@ public class TitleScene extends JPanel {
     private Image background;
     private AudioPlayer audioPlayer;
 
+    // selector arrow: tip sits at ARROW_TIP_X and points right at the selected button
+    private static final int ARROW_TIP_X = 222;
+    private static final int[] BUTTON_Y = { 405, 479, 553 };
+    private static final Color SELECTOR_COLOR = new Color(0, 229, 255);
+
     public TitleScene(Game game) {
         this.game = game;
     }
@@ -28,7 +32,7 @@ public class TitleScene extends JPanel {
     public void start() {
         setFocusable(true);
         addKeyListener(new MenuKeys());
-        background = new ImageIcon(IMG_BACKGROUND).getImage();
+        background = new ImageIcon(IMG_TITLE).getImage();
         playMusic();
         SwingUtilities.invokeLater(this::requestFocusInWindow);
     }
@@ -56,46 +60,19 @@ public class TitleScene extends JPanel {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
 
+        // the custom title screen (logo, mode buttons and team names are baked into the image)
         g.drawImage(background, 0, 0, BOARD_WIDTH, BOARD_HEIGHT, this);
-        g.setColor(new Color(0, 0, 0, 150));
-        g.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
 
-        g.setFont(new Font("Arial", Font.BOLD, 48));
-        g.setColor(Color.WHITE);
-        drawCentered(g, "SPACE INVADERS", 130);
-
-        g.setFont(new Font("Arial", Font.PLAIN, 18));
-        g.setColor(Color.LIGHT_GRAY);
-        drawCentered(g, "Choose a game mode", 180);
-
-        for (int i = 0; i < modes.length; i++) {
-            int y = 270 + i * 90;
-
-            if (i == selectedMode) {
-                g.setColor(new Color(40, 100, 160));
-                g.fillRect(150, y - 35, BOARD_WIDTH - 300, 65);
-            }
-
-            g.setFont(new Font("Arial", Font.BOLD, 22));
-            g.setColor(Color.WHITE);
-            String arrow = i == selectedMode ? "> " : "  ";
-            g.drawString(arrow + modes[i].getLabel(), 185, y - 5);
-
-            g.setFont(new Font("Arial", Font.PLAIN, 14));
-            g.setColor(Color.LIGHT_GRAY);
-            g.drawString(modes[i].getDescription(), 215, y + 18);
+        // right-pointing triangle selector, tip at ARROW_TIP_X, aligned to the selected button
+        if (selectedMode >= 0 && selectedMode < BUTTON_Y.length) {
+            int y = BUTTON_Y[selectedMode];
+            int len = 20;
+            int half = 13;
+            int[] xs = { ARROW_TIP_X - len, ARROW_TIP_X - len, ARROW_TIP_X };
+            int[] ys = { y - half, y + half, y };
+            g.setColor(SELECTOR_COLOR);
+            g.fillPolygon(xs, ys, 3);
         }
-
-        g.setFont(new Font("Arial", Font.PLAIN, 15));
-        g.setColor(Color.WHITE);
-        drawCentered(g, "Use UP and DOWN to choose", 590);
-        drawCentered(g, "Press ENTER or SPACE to start", 620);
-    }
-
-    private void drawCentered(Graphics g, String text, int y) {
-        int textWidth = g.getFontMetrics().stringWidth(text);
-        int x = (BOARD_WIDTH - textWidth) / 2;
-        g.drawString(text, x, y);
     }
 
     private class MenuKeys extends KeyAdapter {
