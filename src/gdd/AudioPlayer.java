@@ -4,7 +4,6 @@ package gdd;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Scanner;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
@@ -39,62 +38,6 @@ public class AudioPlayer {
         clip.open(audioInputStream);
 
         clip.loop(Clip.LOOP_CONTINUOUSLY);
-    }
-
-    public static void main(String[] args) {
-        try {
-            String filePath = "src/audio/title.wav";
-            AudioPlayer audioPlayer = new AudioPlayer(filePath);
-
-            audioPlayer.play();
-            Scanner sc = new Scanner(System.in);
-
-            while (true) {
-                System.out.println("1. pause");
-                System.out.println("2. resume");
-                System.out.println("3. restart");
-                System.out.println("4. stop");
-                System.out.println("5. Jump to specific time");
-                int c = sc.nextInt();
-                audioPlayer.gotoChoice(c);
-                if (c == 4) {
-                    break;
-                }
-            }
-            sc.close();
-        } catch (Exception ex) {
-            System.out.println("Error with playing sound.");
-            ex.printStackTrace();
-
-        }
-    }
-
-    // Work as the user enters his choice
-    private void gotoChoice(int c)
-            throws IOException, LineUnavailableException, UnsupportedAudioFileException {
-        switch (c) {
-            case 1:
-                pause();
-                break;
-            case 2:
-                resumeAudio();
-                break;
-            case 3:
-                restart();
-                break;
-            case 4:
-                stop();
-                break;
-            case 5:
-                System.out.println("Enter time (" + 0
-                        + ", " + clip.getMicrosecondLength() + ")");
-                Scanner sc = new Scanner(System.in);
-                long c1 = sc.nextLong();
-                jump(c1);
-                break;
-
-        }
-
     }
 
     // Method to play the audio
