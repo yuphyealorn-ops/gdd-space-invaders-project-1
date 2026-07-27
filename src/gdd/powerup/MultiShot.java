@@ -3,12 +3,12 @@ package gdd.powerup;
 import static gdd.Global.*;
 import gdd.sprite.Player;
 
-public class SpeedUp extends PowerUp {
+public class MultiShot extends PowerUp {
 
-    public SpeedUp(int x, int y) {
+    public MultiShot(int x, int y) {
         super(x, y);
 
-        setImage(loadScaledImage(IMG_POWERUP_SPEEDUP, 1));
+        setImage(loadScaledImage(IMG_POWERUP_MULTISHOT, 1));
     }
 
     @Override
@@ -21,7 +21,7 @@ public class SpeedUp extends PowerUp {
 
     @Override
     public void upgrade(Player player) {
-        player.setSpeed(player.getSpeed() + 2);
+        player.enableMultiShot();
         this.die();
     }
 }
