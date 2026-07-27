@@ -1,32 +1,43 @@
 package gdd.sprite;
 
 import static gdd.Global.*;
-import javax.swing.ImageIcon;
 
 public class Shot extends Sprite {
 
     private static final int H_SPACE = 20;
     private static final int V_SPACE = 1;
+    private final int velocityX;
+    private final int velocityY;
 
     public Shot() {
+        velocityX = 0;
+        velocityY = -18;
     }
 
     public Shot(int x, int y) {
-
-        initShot(x, y);
+        this(x, y, 0, 0);
     }
 
-    private void initShot(int x, int y) {
+    public Shot(int x, int y, int xOffset) {
+        this(x, y, xOffset, xOffset == 0 ? 0 : xOffset / 9);
+    }
 
-        var ii = new ImageIcon(IMG_SHOT);
+    public Shot(int x, int y, int xOffset, int velocityX) {
+        this.velocityX = velocityX;
+        this.velocityY = -18;
+        initShot(x, y, xOffset);
+    }
 
-        // Scale the image to use the global scaling factor
-        var scaledImage = ii.getImage().getScaledInstance(ii.getIconWidth() * SCALE_FACTOR,
-                ii.getIconHeight() * SCALE_FACTOR, 
-                java.awt.Image.SCALE_SMOOTH);
-        setImage(scaledImage);
+    private void initShot(int x, int y, int xOffset) {
+        setImage(loadScaledImage(IMG_SHOT, SCALE_FACTOR));
 
-        setX(x + H_SPACE);
+        setX(x + H_SPACE + xOffset);
         setY(y - V_SPACE);
+    }
+
+    @Override
+    public void act() {
+        x += velocityX;
+        y += velocityY;
     }
 }

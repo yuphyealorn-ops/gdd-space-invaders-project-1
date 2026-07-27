@@ -1,31 +1,23 @@
 package gdd.sprite;
 
 import static gdd.Global.*;
-import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
-import javax.swing.ImageIcon;
 
 public class Player extends Sprite {
 
-    private static final int START_X = 270;
-    private static final int START_Y = 540;
-    private int width;
-    private int currentSpeed = 2;
+    private static final int START_X = 335;
+    private static final int START_Y = 595;
 
-    private Rectangle bounds = new Rectangle(175,135,17,32);
+    private int currentSpeed = PLAYER_START_SPEED;
+    private boolean multiShot = false;
+    private int verticalSpeed;
 
     public Player() {
         initPlayer();
     }
 
     private void initPlayer() {
-        var ii = new ImageIcon(IMG_PLAYER);
-
-        // Scale the image to use the global scaling factor
-        var scaledImage = ii.getImage().getScaledInstance(ii.getIconWidth() * SCALE_FACTOR,
-                ii.getIconHeight() * SCALE_FACTOR,
-                java.awt.Image.SCALE_SMOOTH);
-        setImage(scaledImage);
+        setImage(loadScaledImage(IMG_PLAYER, SCALE_FACTOR));
 
         setX(START_X);
         setY(START_Y);
@@ -37,45 +29,83 @@ public class Player extends Sprite {
 
     public int setSpeed(int speed) {
         if (speed < 1) {
-            speed = 1; // Ensure speed is at least 1
+            speed = 1;
+        }
+        if (speed > PLAYER_MAX_SPEED) {
+            speed = PLAYER_MAX_SPEED;
         }
         this.currentSpeed = speed;
         return currentSpeed;
     }
 
+    public void enableMultiShot() {
+        multiShot = true;
+    }
+
+    public void resetPosition() {
+        setX(START_X);
+        setY(START_Y);
+        dx = 0;
+        verticalSpeed = 0;
+        setDying(false);
+        setVisible(true);
+    }
+
+    public boolean hasMultiShot() {
+        return multiShot;
+    }
+
+    @Override
     public void act() {
         x += dx;
+        y += verticalSpeed;
+
+        int playerWidth = getImage() == null ? PLAYER_WIDTH : getImage().getWidth(null);
 
         if (x <= 2) {
             x = 2;
         }
 
-        if (x >= BOARD_WIDTH - 2 * width) {
-            x = BOARD_WIDTH - 2 * width;
+        if (x >= BOARD_WIDTH - playerWidth - 2) {
+            x = BOARD_WIDTH - playerWidth - 2;
+        }
+
+        if (y < 90) {
+            y = 90;
+        }
+        if (y > BOARD_HEIGHT - 90) {
+            y = BOARD_HEIGHT - 90;
         }
     }
 
     public void keyPressed(KeyEvent e) {
         int key = e.getKeyCode();
 
-        if (key == KeyEvent.VK_LEFT) {
+        if (key == KeyEvent.VK_LEFT || key == KeyEvent.VK_A) {
             dx = -currentSpeed;
         }
 
-        if (key == KeyEvent.VK_RIGHT) {
+        if (key == KeyEvent.VK_RIGHT || key == KeyEvent.VK_D) {
             dx = currentSpeed;
+        }
+        if (key == KeyEvent.VK_UP || key == KeyEvent.VK_W) {
+            verticalSpeed = -currentSpeed;
+        }
+        if (key == KeyEvent.VK_DOWN || key == KeyEvent.VK_S) {
+            verticalSpeed = currentSpeed;
         }
     }
 
     public void keyReleased(KeyEvent e) {
         int key = e.getKeyCode();
 
-        if (key == KeyEvent.VK_LEFT) {
+        if (key == KeyEvent.VK_LEFT || key == KeyEvent.VK_RIGHT
+                || key == KeyEvent.VK_A || key == KeyEvent.VK_D) {
             dx = 0;
         }
-
-        if (key == KeyEvent.VK_RIGHT) {
-            dx = 0;
+        if (key == KeyEvent.VK_UP || key == KeyEvent.VK_DOWN
+                || key == KeyEvent.VK_W || key == KeyEvent.VK_S) {
+            verticalSpeed = 0;
         }
     }
 }
