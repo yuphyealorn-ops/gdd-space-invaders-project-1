@@ -1,2 +1,6 @@
 *.jar
 *.class
+.DS_Store
+/bin/
+/out/
+/gdd/

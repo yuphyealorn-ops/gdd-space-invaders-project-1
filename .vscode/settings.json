@@ -1,0 +1,12 @@
+{
+    "java.project.sourcePaths": [
+        "src"
+    ],
+    "java.project.outputPath": "out",
+    "files.exclude": {
+        "**/*.class": true,
+        "bin": true,
+        "gdd": true,
+        "out": true
+    }
+}

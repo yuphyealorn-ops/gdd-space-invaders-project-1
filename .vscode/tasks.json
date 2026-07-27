@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Space Invaders",
+            "type": "shell",
+            "command": "javac -d out $(find src/gdd -name '*.java')",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Space Invaders in Terminal",
+            "type": "shell",
+            "command": "java -cp out gdd.Main",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "Build Space Invaders",
+            "dependsOrder": "sequence",
+            "problemMatcher": []
+        }
+    ]
+}
