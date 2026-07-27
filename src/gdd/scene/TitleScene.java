@@ -2,151 +2,122 @@ package gdd.scene;
 
 import gdd.AudioPlayer;
 import gdd.Game;
+import gdd.GameMode;
 import static gdd.Global.*;
 import java.awt.Color;
-import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Image;
-import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import javax.swing.ImageIcon;
 import javax.swing.JPanel;
-import javax.swing.Timer;
+import javax.swing.SwingUtilities;
 
 public class TitleScene extends JPanel {
-
-    private int frame = 0;
-    private Image image;
+    private final Game game;
+    private final GameMode[] modes = GameMode.values();
+    private int selectedMode = 0;
+    private Image background;
     private AudioPlayer audioPlayer;
-    private final Dimension d = new Dimension(BOARD_WIDTH, BOARD_HEIGHT);
-    private Timer timer;
-    private Game game;
 
     public TitleScene(Game game) {
         this.game = game;
-        // initBoard();
-        // initTitle();
-    }
-
-    private void initBoard() {
-
     }
 
     public void start() {
-        addKeyListener(new TAdapter());
         setFocusable(true);
-        setBackground(Color.black);
+        addKeyListener(new MenuKeys());
+        background = new ImageIcon(IMG_BACKGROUND).getImage();
+        playMusic();
+        SwingUtilities.invokeLater(this::requestFocusInWindow);
+    }
 
-        timer = new Timer(1000 / 60, new GameCycle());
-        timer.start();
-
-        initTitle();
-        initAudio();
+    private void playMusic() {
+        try {
+            audioPlayer = new AudioPlayer("src/audio/title.wav");
+            audioPlayer.play();
+        } catch (Exception e) {
+            System.out.println("Could not play the title music.");
+        }
     }
 
     public void stop() {
         try {
-            if (timer != null) {
-                timer.stop();
-            }
-
             if (audioPlayer != null) {
                 audioPlayer.stop();
             }
         } catch (Exception e) {
-            System.err.println("Error closing audio player.");
+            System.out.println("Could not stop the title music.");
         }
-    }
-
-    private void initTitle() {
-        var ii = new ImageIcon(IMG_TITLE);
-        image = ii.getImage();
-
-    }
-
-    private void initAudio() {
-        try {
-            String filePath = "src/audio/title.wav";
-            audioPlayer = new AudioPlayer(filePath);
-
-            audioPlayer.play();
-        } catch (Exception e) {
-            System.err.println("Error with playing sound.");
-        }
-
     }
 
     @Override
-    public void paintComponent(Graphics g) {
+    protected void paintComponent(Graphics g) {
         super.paintComponent(g);
 
-        doDrawing(g);
-    }
+        g.drawImage(background, 0, 0, BOARD_WIDTH, BOARD_HEIGHT, this);
+        g.setColor(new Color(0, 0, 0, 150));
+        g.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
 
-    private void doDrawing(Graphics g) {
+        g.setFont(new Font("Arial", Font.BOLD, 48));
+        g.setColor(Color.WHITE);
+        drawCentered(g, "SPACE INVADERS", 130);
 
-        g.setColor(Color.black);
-        g.fillRect(0, 0, d.width, d.height);
+        g.setFont(new Font("Arial", Font.PLAIN, 18));
+        g.setColor(Color.LIGHT_GRAY);
+        drawCentered(g, "Choose a game mode", 180);
 
-        g.drawImage(image, 0, -80, d.width, d.height, this);
+        for (int i = 0; i < modes.length; i++) {
+            int y = 270 + i * 90;
 
-        if (frame % 60 < 30) {
-            g.setColor(Color.red);
-        } else {
-            g.setColor(Color.white);
-        }
-
-        g.setFont(g.getFont().deriveFont(32f));
-        String text = "Press SPACE to Start";
-        int stringWidth = g.getFontMetrics().stringWidth(text);
-        int x = (d.width - stringWidth) / 2;
-        // int stringHeight = g.getFontMetrics().getAscent();
-        // int y = (d.height + stringHeight) / 2;
-        g.drawString(text, x, 600);
-
-        g.setColor(Color.gray);
-        g.setFont(g.getFont().deriveFont(10f));
-        g.drawString("Game by Chayapol", 10, 650);
-
-        Toolkit.getDefaultToolkit().sync();
-    }
-
-    private void update() {
-        frame++;
-    }
-
-    private void doGameCycle() {
-        update();
-        repaint();
-    }
-
-    private class GameCycle implements ActionListener {
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            doGameCycle();
-        }
-    }
-
-    private class TAdapter extends KeyAdapter {
-
-        @Override
-        public void keyReleased(KeyEvent e) {
-
-        }
-
-        @Override
-        public void keyPressed(KeyEvent e) {
-            System.out.println("Title.keyPressed: " + e.getKeyCode());
-            int key = e.getKeyCode();
-            if (key == KeyEvent.VK_SPACE) {
-                // Load the next scene
-                game.loadScene2();
+            if (i == selectedMode) {
+                g.setColor(new Color(40, 100, 160));
+                g.fillRect(150, y - 35, BOARD_WIDTH - 300, 65);
             }
 
+            g.setFont(new Font("Arial", Font.BOLD, 22));
+            g.setColor(Color.WHITE);
+            String arrow = i == selectedMode ? "> " : "  ";
+            g.drawString(arrow + modes[i].getLabel(), 185, y - 5);
+
+            g.setFont(new Font("Arial", Font.PLAIN, 14));
+            g.setColor(Color.LIGHT_GRAY);
+            g.drawString(modes[i].getDescription(), 215, y + 18);
+        }
+
+        g.setFont(new Font("Arial", Font.PLAIN, 15));
+        g.setColor(Color.WHITE);
+        drawCentered(g, "Use UP and DOWN to choose", 590);
+        drawCentered(g, "Press ENTER or SPACE to start", 620);
+    }
+
+    private void drawCentered(Graphics g, String text, int y) {
+        int textWidth = g.getFontMetrics().stringWidth(text);
+        int x = (BOARD_WIDTH - textWidth) / 2;
+        g.drawString(text, x, y);
+    }
+
+    private class MenuKeys extends KeyAdapter {
+        @Override
+        public void keyPressed(KeyEvent e) {
+            int key = e.getKeyCode();
+
+            if (key == KeyEvent.VK_UP || key == KeyEvent.VK_W) {
+                selectedMode--;
+                if (selectedMode < 0) {
+                    selectedMode = modes.length - 1;
+                }
+            } else if (key == KeyEvent.VK_DOWN || key == KeyEvent.VK_S) {
+                selectedMode++;
+                if (selectedMode >= modes.length) {
+                    selectedMode = 0;
+                }
+            } else if (key == KeyEvent.VK_ENTER || key == KeyEvent.VK_SPACE) {
+                game.loadGame(modes[selectedMode]);
+            }
+
+            repaint();
         }
     }
 }
