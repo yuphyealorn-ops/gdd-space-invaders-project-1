@@ -1,6 +1,7 @@
 # Group Members
 
 Chanyuphyea Lorn 6642038
+
 Ye Htet Aung 6711266
 
 # Space Invaders Java Project
@@ -20,10 +21,17 @@ Enemies use a five-frame exhaust animation only while moving forward.
 
 - Arrow keys or WASD: move
 - Space or Enter: shoot and select
+- X: use ultimate move
 - P: pause
 - M: turn music on or off
 - R: retry
 - Escape: go back to the menu
+
+## Power-ups
+
+Speed up: Adds +2 movement speed to the player. 15 second timer.
+Multi-shot: Adds +2 bullet count when shooting. 15 second timer.
+Ultimate: Piercing Bullet: Fires a giant beam of laser that pierces through all the enemies. Deals 5x damage to the boss. X to activate.
 
 ## How to run
 
