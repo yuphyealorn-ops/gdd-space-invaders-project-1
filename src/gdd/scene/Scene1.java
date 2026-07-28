@@ -14,6 +14,8 @@ import gdd.powerup.PowerUp;
 import gdd.powerup.SpeedUp;
 import gdd.sprite.Alien1;
 import gdd.sprite.Boss;
+import gdd.sprite.BossBullet;
+import gdd.sprite.BossExplosion;
 import gdd.sprite.Enemy;
 import gdd.sprite.EnemyBullet;
 import gdd.sprite.Explosion;
@@ -24,6 +26,7 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
@@ -64,6 +67,10 @@ public class Scene1 extends JPanel {
     private Player player;
     private Boss boss;
     private boolean bossStarted;
+    private final List<BossBullet> bossBullets = new ArrayList<>();
+    private BossExplosion bossBlast;
+    private int bossFireTimer = 80;
+    private boolean pendingVictory;
     private Timer timer;
     private AudioPlayer music;
     private int[][] starMap = new int[0][0];
@@ -234,8 +241,7 @@ public class Scene1 extends JPanel {
                 : Math.max(30, 74 - difficulty * 8);
         boolean canSpawn = mode != GameMode.CAMPAIGN || waveSpawned < waveTarget;
         if (canSpawn && frame % interval == 0) {
-            // stage 1 = type 1 only; stage 2+ and rush = both types
-            int kind = (mode == GameMode.CAMPAIGN && level < 2) ? 1 : (random.nextInt(2) + 1);
+            int kind = random.nextInt(2) + 1; // both enemy types spawn in every stage
             createEnemy(randomY(), difficulty, kind);
         }
         if (frame > 0 && frame % 720 == 0) {
@@ -300,12 +306,11 @@ public class Scene1 extends JPanel {
                 damagePlayer(DMG_CONTACT);
                 continue;
             }
-            boolean canShoot = mode != GameMode.CAMPAIGN || level >= 2; // stage 2+ start shooting bombs
             int fireOdds = mode == GameMode.RUSH ? 150 : 210;
-            if (canShoot && enemyBullets.size() < 40 && random.nextInt(fireOdds) == 0) {
-                boolean bomb = random.nextInt(4) == 0; // bomb is rarer than bullets (25%)
+            if (enemyBullets.size() < 40 && random.nextInt(fireOdds) == 0) {
+                boolean bomb = random.nextInt(2) == 0; // ~50% bombs (both stages shoot both)
                 double vy = Math.max(-1.4, Math.min(1.4, (player.getY() - enemy.getY()) / 260.0));
-                double vx = bomb ? -2.2 : -4.4; // bomb travels slowly so it can be dodged
+                double vx = bomb ? -2.2 : -6.6; // bomb slow + high damage, bullet 50% faster
                 enemyBullets.add(new EnemyBullet(enemy.getX(), enemy.getY() + 20, vx, vy, bomb));
             }
         }
@@ -334,15 +339,24 @@ public class Scene1 extends JPanel {
                 }
             }
             if (boss != null && boss.isVisible() && shot.collideWithOther(boss)) {
-                SoundFx.play(SFX_BOSS_HIT);
-                score += 50;
-                burst(shot.getX(), shot.getY(), new Color(255, 180, 80), 6);
-                boolean dead = boss.hit(shot.isPiercing() ? 5 : 1); // ultimate deals 5x to the boss
-                if (!shot.isPiercing()) {
+                if (shot.isPiercing()) {
+                    if (!shot.hasHitBoss()) { // the ultimate beam may only hit the boss once
+                        shot.markBossHit();
+                        SoundFx.play(SFX_BOSS_HIT);
+                        score += 50;
+                        burst(shot.getX(), shot.getY(), new Color(255, 180, 80), 6);
+                        if (boss.hit(5)) {
+                            onBossDefeated();
+                        }
+                    }
+                } else {
                     consumed = true;
-                }
-                if (dead) {
-                    onBossDefeated();
+                    SoundFx.play(SFX_BOSS_HIT);
+                    score += 50;
+                    burst(shot.getX(), shot.getY(), new Color(255, 180, 80), 6);
+                    if (boss.hit(1)) {
+                        onBossDefeated();
+                    }
                 }
             }
             if (consumed || shot.getX() > BOARD_WIDTH + 40 || shot.getY() < -40 || shot.getY() > BOARD_HEIGHT + 40) {
@@ -396,7 +410,6 @@ public class Scene1 extends JPanel {
             lives--;
             hp = PLAYER_MAX_HP;
             invulnerableFrames = 130;
-            enemyBullets.clear();
             player.resetPosition();
             if (lives <= 0) {
                 finish(false, "GAME OVER");
@@ -437,12 +450,38 @@ public class Scene1 extends JPanel {
     }
 
     private void updateBoss() {
-        if (boss == null || !boss.isVisible()) {
-            return;
+        if (boss != null && boss.isVisible()) {
+            boss.act();
+            if (invulnerableFrames == 0 && boss.collideWithOther(player)) {
+                damagePlayer(DMG_CONTACT);
+            }
+            if (!boss.isEntering() && --bossFireTimer <= 0) {
+                bossBullets.add(new BossBullet(boss.getX() + boss.getWidth() / 2,
+                        boss.getY() + boss.getHeight() / 2,
+                        player.getX() + player.getWidth() / 2,
+                        player.getY() + player.getHeight() / 2));
+                bossFireTimer = 70 + random.nextInt(45);
+            }
         }
-        boss.act();
-        if (invulnerableFrames == 0 && boss.collideWithOther(player)) {
-            damagePlayer(DMG_CONTACT);
+        Iterator<BossBullet> it = bossBullets.iterator();
+        while (it.hasNext()) {
+            BossBullet b = it.next();
+            b.act();
+            if (!b.isVisible()) {
+                it.remove();
+            } else if (invulnerableFrames == 0 && b.collideWithOther(player)) {
+                it.remove();
+                damagePlayer(b.getDamage());
+            }
+        }
+        if (bossBlast != null) {
+            bossBlast.act();
+            if (!bossBlast.isVisible()) {
+                bossBlast = null;
+                if (pendingVictory) {
+                    finish(true, "YOU WIN");
+                }
+            }
         }
     }
 
@@ -457,14 +496,12 @@ public class Scene1 extends JPanel {
 
     private void onBossDefeated() {
         SoundFx.play(SFX_BOSS_DEATH);
-        for (int i = 0; i < 6; i++) {
-            explosions.add(new Explosion(boss.getX() + random.nextInt(Math.max(1, boss.getWidth())),
-                    boss.getY() + random.nextInt(Math.max(1, boss.getHeight()))));
-        }
+        bossBlast = new BossExplosion(boss.getX() + boss.getWidth() / 2,
+                boss.getY() + boss.getHeight() / 2);
         burst(boss.getX() + boss.getWidth() / 2, boss.getY() + boss.getHeight() / 2,
                 new Color(255, 180, 80), 60);
         score += 5000 + lives * 1000;
-        finish(true, "YOU WIN");
+        pendingVictory = true; // let the death explosion play before the win screen
     }
 
     private void switchStageMusic() {
@@ -683,6 +720,12 @@ public class Scene1 extends JPanel {
             g.fillOval(boss.getX() - 10, boss.getY() - 10, boss.getWidth() + 20, boss.getHeight() + 20);
             g.drawImage(boss.getImage(), boss.getX(), boss.getY(), this);
         }
+        for (BossBullet b : bossBullets) {
+            g.drawImage(b.getImage(), b.getX(), b.getY(), this);
+        }
+        if (bossBlast != null) {
+            g.drawImage(bossBlast.getImage(), bossBlast.getX(), bossBlast.getY(), this);
+        }
         if (invulnerableFrames == 0 || frame % 10 < 5) {
             g.setColor(new Color(40, 220, 255, 30));
             g.fillOval(player.getX() - 8, player.getY() - 6, player.getWidth() + 16, player.getHeight() + 12);
@@ -724,24 +767,45 @@ public class Scene1 extends JPanel {
     }
 
     private void drawPowerBar(Graphics2D g) {
-        int y = BOARD_HEIGHT - 34;
-        drawPowerSlot(g, 20, y, "SPD", speedTimer, new Color(70, 240, 140));
-        drawPowerSlot(g, 132, y, "MULTI", multiTimer, new Color(255, 90, 200));
-        drawUltSlot(g, 250, y);
+        int y = BOARD_HEIGHT - 46;
+        drawTimedAbility(g, 20, y, PowerUp.speedBarIcon(), speedTimer, new Color(80, 245, 150));
+        drawTimedAbility(g, 96, y, PowerUp.multiBarIcon(), multiTimer, new Color(255, 110, 210));
+        drawUltIcon(g, 172, y);
     }
 
-    private void drawUltSlot(Graphics2D g, int x, int y) {
-        boolean ready = player.ultReady();
-        g.setFont(Fonts.get(15f));
-        g.setColor(ready ? new Color(255, 220, 90) : new Color(95, 98, 108));
-        g.drawString("ULT", x, y + 16);
-        g.setColor(new Color(30, 32, 38));
-        g.fillRoundRect(x + 40, y + 4, 60, 14, 6, 6);
-        g.setColor(ready ? new Color(255, 220, 90) : new Color(120, 180, 255));
-        g.fillRoundRect(x + 40, y + 4, 60 * player.getUltCharge() / 100, 14, 6, 6);
-        if (ready) {
-            g.setColor(Color.WHITE);
-            g.drawString("X", x + 104, y + 16);
+    // Speed / Multi: real icon, dim until collected, with a 15s countdown beside it.
+    private void drawTimedAbility(Graphics2D g, int x, int y, Image icon, int timer, Color lit) {
+        boolean active = timer > 0;
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, active ? 1f : 0.35f));
+        g.drawImage(icon, x, y, this);
+        g.setComposite(AlphaComposite.SrcOver);
+        if (active) {
+            g.setFont(Fonts.get(16f));
+            g.setColor(lit);
+            g.drawString(String.valueOf((timer + 59) / 60), x + icon.getWidth(null) + 4, y + 24);
+        }
+    }
+
+    // Ultimate: the icon itself IS the bar - a dim base with the charged portion
+    // drawn at full opacity, filling left to right.
+    private void drawUltIcon(Graphics2D g, int x, int y) {
+        Image icon = PowerUp.ultBarIcon();
+        int w = icon.getWidth(null);
+        int h = icon.getHeight(null);
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
+        g.drawImage(icon, x, y, this);
+        g.setComposite(AlphaComposite.SrcOver);
+        int fill = w * player.getUltCharge() / 100;
+        if (fill > 0) {
+            java.awt.Shape clip = g.getClip();
+            g.setClip(x, y, fill, h);
+            g.drawImage(icon, x, y, this);
+            g.setClip(clip);
+        }
+        if (player.ultReady()) {
+            g.setFont(Fonts.get(14f));
+            g.setColor(new Color(255, 230, 120));
+            g.drawString("X", x + w + 4, y + 22);
         }
     }
 
