@@ -29,9 +29,9 @@ Enemies use a five-frame exhaust animation only while moving forward.
 
 ## Power-ups
 
-Speed up: Adds +2 movement speed to the player. 15 second timer.
-Multi-shot: Adds +2 bullet count when shooting. 15 second timer.
-Ultimate: Piercing Bullet: Fires a giant beam of laser that pierces through all the enemies. Deals 5x damage to the boss. X to activate.
+- Speed up: Adds +2 movement speed to the player. 15 second timer.
+- Multi-shot: Adds +2 bullet count when shooting. 15 second timer.
+- Ultimate: Piercing Bullet: Fires a giant beam of laser that pierces through all the enemies. Deals 5x damage to the boss. X to activate.
 
 ## How to run
 
