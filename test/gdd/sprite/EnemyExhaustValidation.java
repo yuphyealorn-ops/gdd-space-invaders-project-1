@@ -14,6 +14,7 @@ public final class EnemyExhaustValidation {
     public static void main(String[] args) {
         ControlledEnemy enemy = new ControlledEnemy();
         boolean[] seen = new boolean[5];
+        boolean orientationChecked = false;
 
         enemy.moveForward();
         for (int i = 0; i < 27; i++) {
@@ -29,8 +30,18 @@ public final class EnemyExhaustValidation {
             double exhaustCenterX = enemy.getExhaustX() + exhaust.getWidth(null) / 2.0;
             require(exhaustCenterX > enemyCenterX,
                     "Left-facing enemy exhaust was not positioned behind the ship");
+            if (enemy.getExhaustFrameIndex() == 0) {
+                double visibleCenterX = alphaWeightedCenterX(exhaust);
+                require(visibleCenterX < exhaust.getWidth(null) / 2.0,
+                        "Exhaust art faces away from the enemy instead of back toward it");
+                require(enemy.getExhaustX() + visibleCenterX > enemyCenterX,
+                        "Flipped exhaust art no longer renders behind the enemy");
+                orientationChecked = true;
+            }
         }
         requireAllFrames(seen);
+        require(orientationChecked,
+                "Enemy exhaust orientation was not validated");
 
         enemy.moveBackward();
         enemy.act(0, enemy.playerAimY());
@@ -45,15 +56,26 @@ public final class EnemyExhaustValidation {
                 "Exhaust played during movement perpendicular to the facing direction");
 
         System.out.println(
-                "Enemy exhaust: all 5 transparent clips animate only during forward movement and render behind the ship.");
+                "Enemy exhaust: all 5 transparent clips face the enemy, animate only during forward movement, and render behind the ship.");
+    }
+
+    private static double alphaWeightedCenterX(Image image) {
+        BufferedImage sample = toBufferedImage(image);
+        long alphaTotal = 0;
+        long weightedX = 0;
+        for (int y = 0; y < sample.getHeight(); y++) {
+            for (int x = 0; x < sample.getWidth(); x++) {
+                int alpha = sample.getRGB(x, y) >>> 24;
+                alphaTotal += alpha;
+                weightedX += (long) x * alpha;
+            }
+        }
+        require(alphaTotal > 0, "Exhaust frame contains no visible pixels");
+        return (double) weightedX / alphaTotal;
     }
 
     private static void requireHasTransparency(Image image) {
-        BufferedImage sample = new BufferedImage(
-                image.getWidth(null), image.getHeight(null), BufferedImage.TYPE_INT_ARGB);
-        Graphics2D graphics = sample.createGraphics();
-        graphics.drawImage(image, 0, 0, null);
-        graphics.dispose();
+        BufferedImage sample = toBufferedImage(image);
         boolean foundTransparentPixel = false;
         boolean foundVisiblePixel = false;
         for (int y = 0; y < sample.getHeight(); y++) {
@@ -65,6 +87,15 @@ public final class EnemyExhaustValidation {
         }
         require(foundTransparentPixel && foundVisiblePixel,
                 "Exhaust frame does not preserve a transparent background");
+    }
+
+    private static BufferedImage toBufferedImage(Image image) {
+        BufferedImage sample = new BufferedImage(
+                image.getWidth(null), image.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = sample.createGraphics();
+        graphics.drawImage(image, 0, 0, null);
+        graphics.dispose();
+        return sample;
     }
 
     private static void requireAllFrames(boolean[] seen) {

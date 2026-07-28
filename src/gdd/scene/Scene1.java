@@ -49,10 +49,12 @@ import javax.swing.Timer;
 
 public class Scene1 extends JPanel {
     private static final int SHOT_LIMIT = 30;
-    private static final int RUSH_DURATION = 90 * 60;
+    static final int RUSH_DURATION_FRAMES = 60 * 60;
     private static final int CAMPAIGN_WAVES = 3;
     static final int CAMPAIGN_STAGE_DURATION_FRAMES = 5 * 60 * 60;
-    private static final int CAMPAIGN_ACTIVE_ENEMY_LIMIT = 12;
+    static final int STAGE_ONE_KILL_TARGET = 12;
+    static final int STAGE_KILL_INCREMENT = 4;
+    private static final int ACTIVE_ENEMY_LIMIT = 12;
     private static final int POWERUP_DURATION = 900; // ~15 seconds
     private static final int COUNTDOWN_FRAMES = 236; // 3, 2, 1, START!
 
@@ -77,10 +79,14 @@ public class Scene1 extends JPanel {
     private boolean pendingVictory;
     private Timer timer;
     private AudioPlayer music;
+    private String currentMusicPath = MUSIC_STAGE;
     private int[][] starMap = new int[0][0];
     private int frame;
     private int waveFrame;
     private int level = 1;
+    private int stageKills;
+    private int stageKillTarget;
+    private int endlessCycle = 1;
     private int score;
     private int highScore;
     private int kills;
@@ -139,7 +145,7 @@ public class Scene1 extends JPanel {
             return;
         }
         try {
-            music = new AudioPlayer(MUSIC_STAGE);
+            music = new AudioPlayer(currentMusicPath);
             music.play();
         } catch (Exception e) {
             System.err.println("Game music unavailable: " + e.getMessage());
@@ -180,6 +186,8 @@ public class Scene1 extends JPanel {
 
     private void prepareWave() {
         waveFrame = 0;
+        stageKills = 0;
+        stageKillTarget = enemyKillTarget(mode, level, endlessCycle);
         bannerTimer = 150;
         enemies.clear();
         enemyBullets.clear();
@@ -229,25 +237,21 @@ public class Scene1 extends JPanel {
     }
 
     private void spawnForMode() {
-        if (mode == GameMode.CAMPAIGN && level >= 3) {
+        if (usesThreeStageFlow(mode) && level >= 3) {
             if (!bossStarted) {
                 startBossFight();
             }
             return; // stage 3 is the boss fight
         }
-        int difficulty = mode == GameMode.CAMPAIGN ? level : 1 + frame / 1200;
-        if (mode != GameMode.CAMPAIGN) {
-            level = difficulty;
-        }
+        int difficulty = mode == GameMode.ENDLESS
+                ? level + endlessCycle - 1
+                : level;
         int interval = mode == GameMode.RUSH ? Math.max(22, 48 - difficulty * 2)
                 : Math.max(30, 74 - difficulty * 8);
-        boolean campaignStageRunning = mode != GameMode.CAMPAIGN
-                || !isCampaignStageTimeComplete(waveFrame);
-        int spawnClock = mode == GameMode.CAMPAIGN ? waveFrame : frame;
-        boolean belowActiveLimit = mode != GameMode.CAMPAIGN
-                || enemies.size() < CAMPAIGN_ACTIVE_ENEMY_LIMIT;
-        if (campaignStageRunning && belowActiveLimit && spawnClock % interval == 0) {
-            int kind = random.nextInt(2) + 1; // both enemy types spawn in every stage
+        if (enemies.size() < ACTIVE_ENEMY_LIMIT && waveFrame % interval == 0) {
+            int kind = usesThreeStageFlow(mode) && level == 1
+                    ? 1
+                    : random.nextInt(2) + 1;
             createEnemy(randomY(), difficulty, kind);
         }
         if (frame > 0 && frame % 720 == 0) {
@@ -331,6 +335,7 @@ public class Scene1 extends JPanel {
                 if (!enemy.isVisible() || !shot.collideWithOther(enemy)) {
                     continue;
                 }
+                player.gainDamageCharge(1);
                 if (shot.isPiercing()) {
                     killEnemy(enemy); // ultimate pierces through everything
                 } else {
@@ -379,6 +384,7 @@ public class Scene1 extends JPanel {
     private void killEnemy(Enemy enemy) {
         enemy.die();
         kills++;
+        stageKills++;
         combo = comboTimer > 0 ? Math.min(8, combo + 1) : 1;
         comboTimer = 150;
         score += enemy.getScoreValue() * combo;
@@ -449,19 +455,25 @@ public class Scene1 extends JPanel {
     }
 
     private void checkProgress() {
-        if (mode == GameMode.RUSH && frame >= RUSH_DURATION) {
+        if (ended) {
+            return;
+        }
+        if (mode == GameMode.RUSH && isRushTimeComplete(waveFrame)) {
             finish(true, "TIME UP");
             return;
         }
-        // Campaign stages 1 and 2 each run for a full five minutes. The
-        // scrolling background is procedural, and active enemies are capped,
-        // so play continues for the whole stage without unbounded buildup.
-        // Stage 3 remains the defeat-based boss fight.
-        if (mode == GameMode.CAMPAIGN && level < 3
-                && isCampaignStageTimeComplete(waveFrame)) {
-            level++;
-            score += 750 * level;
-            prepareWave();
+        if (shouldAdvanceEnemyStage(mode, level, waveFrame, stageKills, stageKillTarget)) {
+            advanceStage();
+        }
+    }
+
+    private void advanceStage() {
+        level++;
+        score += 750 * level;
+        prepareWave();
+        if (level >= CAMPAIGN_WAVES) {
+            startBossFight();
+        } else {
             switchStageMusic();
         }
     }
@@ -518,7 +530,12 @@ public class Scene1 extends JPanel {
             if (!bossBlast.isVisible()) {
                 bossBlast = null;
                 if (pendingVictory) {
-                    finish(true, "YOU WIN");
+                    pendingVictory = false;
+                    if (mode == GameMode.ENDLESS) {
+                        beginNextEndlessCycle();
+                    } else {
+                        finish(true, "YOU WIN");
+                    }
                 }
             }
         }
@@ -527,8 +544,11 @@ public class Scene1 extends JPanel {
     private void startBossFight() {
         bossStarted = true;
         boss = new Boss();
+        bossFireTimer = 80;
         enemies.clear();
         enemyBullets.clear();
+        bossBullets.clear();
+        bossFlames.clear();
         bannerTimer = 150;
         switchMusic(SFX_BOSS_FIGHT);
     }
@@ -540,16 +560,30 @@ public class Scene1 extends JPanel {
         burst(boss.getX() + boss.getWidth() / 2, boss.getY() + boss.getHeight() / 2,
                 new Color(255, 180, 80), 60);
         score += 5000 + lives * 1000;
-        pendingVictory = true; // let the death explosion play before the win screen
+        bossBullets.clear();
+        bossFlames.clear();
+        pendingVictory = true; // resolve campaign victory/endless loop after the explosion
+    }
+
+    private void beginNextEndlessCycle() {
+        endlessCycle++;
+        level = 1;
+        boss = null;
+        bossStarted = false;
+        pendingVictory = false;
+        bossFireTimer = 80;
+        prepareWave();
+        switchMusic(MUSIC_STAGE);
     }
 
     private void switchStageMusic() {
-        if (mode == GameMode.CAMPAIGN && level == 2) {
+        if (usesThreeStageFlow(mode) && level == 2) {
             switchMusic(MUSIC_STAGE2);
         }
     }
 
     private void switchMusic(String path) {
+        currentMusicPath = path;
         stopMusic();
         if (muted) {
             return;
@@ -808,25 +842,65 @@ public class Scene1 extends JPanel {
         g.setColor(new Color(255, 105, 165));
         g.drawString("LIVES " + lives, BOARD_WIDTH - 150, 40);
         String stage;
-        if (mode == GameMode.CAMPAIGN && level < CAMPAIGN_WAVES) {
-            stage = "W" + level + "/" + CAMPAIGN_WAVES + "  " + formatStageTime(waveFrame);
-        } else if (mode == GameMode.CAMPAIGN) {
-            stage = "W" + level + "/" + CAMPAIGN_WAVES + "  BOSS";
+        if (usesThreeStageFlow(mode) && level < CAMPAIGN_WAVES) {
+            String prefix = mode == GameMode.ENDLESS
+                    ? "E" + endlessCycle + " W" + level
+                    : "W" + level;
+            stage = prefix + " " + stageKills + "/" + stageKillTarget
+                    + " " + formatStageTime(waveFrame);
+        } else if (usesThreeStageFlow(mode)) {
+            stage = mode == GameMode.ENDLESS
+                    ? "E" + endlessCycle + " W3 BOSS"
+                    : "W3/3  BOSS";
+        } else if (mode == GameMode.RUSH) {
+            stage = "RUSH  " + formatRemainingTime(RUSH_DURATION_FRAMES, waveFrame);
         } else {
             stage = mode.getLabel();
         }
         g.setColor(new Color(140, 220, 255));
-        g.drawString(stage, BOARD_WIDTH - 150, 60);
+        g.drawString(stage, BOARD_WIDTH - 205, 60);
     }
 
     static String formatStageTime(int elapsedFrames) {
-        int remainingFrames = Math.max(0, CAMPAIGN_STAGE_DURATION_FRAMES - elapsedFrames);
+        return formatRemainingTime(CAMPAIGN_STAGE_DURATION_FRAMES, elapsedFrames);
+    }
+
+    static String formatRemainingTime(int durationFrames, int elapsedFrames) {
+        int remainingFrames = Math.max(0, durationFrames - elapsedFrames);
         int remainingSeconds = (remainingFrames + 59) / 60;
         return String.format("%d:%02d", remainingSeconds / 60, remainingSeconds % 60);
     }
 
     static boolean isCampaignStageTimeComplete(int elapsedFrames) {
         return elapsedFrames >= CAMPAIGN_STAGE_DURATION_FRAMES;
+    }
+
+    static boolean isRushTimeComplete(int elapsedFrames) {
+        return elapsedFrames >= RUSH_DURATION_FRAMES;
+    }
+
+    static boolean usesThreeStageFlow(GameMode gameMode) {
+        return gameMode == GameMode.CAMPAIGN || gameMode == GameMode.ENDLESS;
+    }
+
+    static int enemyKillTarget(GameMode gameMode, int stage, int cycle) {
+        if (!usesThreeStageFlow(gameMode) || stage < 1 || stage >= CAMPAIGN_WAVES) {
+            return 0;
+        }
+        int target = STAGE_ONE_KILL_TARGET + (stage - 1) * STAGE_KILL_INCREMENT;
+        if (gameMode == GameMode.ENDLESS) {
+            target += (Math.max(1, cycle) - 1) * 2;
+        }
+        return target;
+    }
+
+    static boolean shouldAdvanceEnemyStage(GameMode gameMode, int stage,
+            int elapsedFrames, int defeatedEnemies, int killTarget) {
+        return usesThreeStageFlow(gameMode)
+                && stage >= 1
+                && stage < CAMPAIGN_WAVES
+                && (defeatedEnemies >= killTarget
+                        || isCampaignStageTimeComplete(elapsedFrames));
     }
 
     private void drawPowerBar(Graphics2D g) {
@@ -905,11 +979,21 @@ public class Scene1 extends JPanel {
         g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
         g.setFont(Fonts.get(34f));
         g.setColor(new Color(90, 230, 255));
-        String title = mode == GameMode.CAMPAIGN ? "WAVE " + level : mode.getLabel();
+        String title = usesThreeStageFlow(mode) ? "WAVE " + level : mode.getLabel();
         drawCentered(g, title, BOARD_HEIGHT / 2 - 10);
         g.setFont(Fonts.get(16f));
         g.setColor(Color.WHITE);
-        drawCentered(g, mode.getDescription(), BOARD_HEIGHT / 2 + 24);
+        String subtitle;
+        if (usesThreeStageFlow(mode) && level < CAMPAIGN_WAVES) {
+            subtitle = "DEFEAT " + stageKillTarget + " ENEMIES OR SURVIVE 5:00";
+        } else if (usesThreeStageFlow(mode)) {
+            subtitle = "DEFEAT THE BOSS";
+        } else if (mode == GameMode.RUSH) {
+            subtitle = "SCORE AS MUCH AS YOU CAN IN 1:00";
+        } else {
+            subtitle = mode.getDescription();
+        }
+        drawCentered(g, subtitle, BOARD_HEIGHT / 2 + 24);
         g.setComposite(AlphaComposite.SrcOver);
     }
 

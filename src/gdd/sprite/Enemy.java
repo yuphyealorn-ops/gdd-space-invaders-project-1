@@ -68,10 +68,14 @@ public class Enemy extends Sprite {
         };
         for (int i = 0; i < exhaustRects.length; i++) {
             int[] r = exhaustRects[i];
-            BufferedImage source = effects.getSubimage(r[0], r[1], r[2], r[3]);
-            // The sheet is authored for a left-facing ship. Rotate it into the
-            // same up-facing base orientation as the enemy, then both can use
-            // the identical runtime facing angle.
+            // Flip the sheet frame so its curved leading edge faces back toward
+            // the ship instead of pointing away from it. The exhaust is still
+            // positioned behind the enemy below; this only corrects the art's
+            // visual thrust direction.
+            BufferedImage source = flipHorizontal(
+                    effects.getSubimage(r[0], r[1], r[2], r[3]));
+            // Rotate into the same up-facing base orientation as the enemy so
+            // both continue to use the identical runtime facing angle.
             BufferedImage up = rotate(source, 90);
             EXHAUST_UP[i] = scaleImage(up,
                     Math.max(1, (int) Math.round(up.getWidth() * EXHAUST_SCALE)),
