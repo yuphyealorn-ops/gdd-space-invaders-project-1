@@ -11,6 +11,7 @@ public class Player extends Sprite {
 
     private static final int START_X = 60;
     private static final int START_Y = BOARD_HEIGHT / 2 - 14;
+    private static final int ULT_CHARGE_PER_BOSS_DAMAGE = 5;
 
     private final Image idle1;
     private final Image idle2;
@@ -57,8 +58,10 @@ public class Player extends Sprite {
         return shotLevel;
     }
 
-    public void gainCharge(int amount) {
-        ultCharge = Math.min(100, ultCharge + amount);
+    public void gainBossDamageCharge(int damage) {
+        if (damage > 0) {
+            ultCharge = Math.min(100, ultCharge + damage * ULT_CHARGE_PER_BOSS_DAMAGE);
+        }
     }
 
     public boolean ultReady() {

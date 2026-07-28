@@ -13,10 +13,15 @@ public class Enemy extends Sprite {
 
     private static final BufferedImage[] BASE_NORMAL = new BufferedImage[2];
     private static final BufferedImage[] BASE_CRACKED = new BufferedImage[2];
+    private static final BufferedImage[] EXHAUST_UP = new BufferedImage[5];
     private static final Map<String, Image> ROT_CACHE = new HashMap<>();
+    private static final Map<String, Image> EXHAUST_ROT_CACHE = new HashMap<>();
 
     private static final int HOLD_MIN_X = (int) (BOARD_WIDTH * 0.42);
     private static final int HOLD_MAX_X = BOARD_WIDTH - 90;
+    private static final int EXHAUST_FRAME_TICKS = 5;
+    private static final double EXHAUST_SCALE = 0.32;
+    private static final double FORWARD_MOVEMENT_THRESHOLD = 0.12;
 
     protected int kind = 1; // 1 or 2
     protected double preciseX;
@@ -30,6 +35,9 @@ public class Enemy extends Sprite {
     protected int health = 1;
     protected int maxHealth = 1;
     protected int scoreValue = 100;
+    private boolean exhaustActive;
+    private int exhaustTick;
+    private int exhaustFrameIndex;
 
     public Enemy(int x, int y) {
         this(x, y, 1);
@@ -49,6 +57,26 @@ public class Enemy extends Sprite {
         BASE_NORMAL[1] = baseUp(sheet, 268, 227, 144, 191, 60);
         BASE_CRACKED[0] = baseUp(sheet, 45, 590, 203, 191, 66);
         BASE_CRACKED[1] = baseUp(sheet, 268, 590, 144, 191, 60);
+
+        BufferedImage effects = loadSheet(IMG_ENEMY_EFFECT);
+        int[][] exhaustRects = {
+            {384, 140, 61, 176},
+            {595, 127, 101, 203},
+            {829, 130, 100, 197},
+            {1060, 133, 100, 191},
+            {1297, 154, 96, 149}
+        };
+        for (int i = 0; i < exhaustRects.length; i++) {
+            int[] r = exhaustRects[i];
+            BufferedImage source = effects.getSubimage(r[0], r[1], r[2], r[3]);
+            // The sheet is authored for a left-facing ship. Rotate it into the
+            // same up-facing base orientation as the enemy, then both can use
+            // the identical runtime facing angle.
+            BufferedImage up = rotate(source, 90);
+            EXHAUST_UP[i] = scaleImage(up,
+                    Math.max(1, (int) Math.round(up.getWidth() * EXHAUST_SCALE)),
+                    Math.max(1, (int) Math.round(up.getHeight() * EXHAUST_SCALE)));
+        }
     }
 
     // Scaled but still facing up; rotation is applied dynamically per frame.
@@ -76,6 +104,8 @@ public class Enemy extends Sprite {
 
     // px,py = the point (player centre) the enemy should turn toward.
     public void act(int px, int py) {
+        double previousX = preciseX;
+        double previousY = preciseY;
         weavePhase += 0.04;
         double toTarget = targetX - preciseX;
         preciseX += Math.max(-fallSpeed, Math.min(fallSpeed, toTarget));
@@ -98,6 +128,23 @@ public class Enemy extends Sprite {
         double target = Math.toDegrees(Math.atan2(dy, dx)) + 90; // up-facing art -> point at player
         facingAngle = approachAngle(facingAngle, target, 3.5);
         setImage(frameForAngle());
+        updateExhaust(preciseX - previousX, preciseY - previousY);
+    }
+
+    private void updateExhaust(double movementX, double movementY) {
+        double radians = Math.toRadians(facingAngle);
+        double forwardX = Math.sin(radians);
+        double forwardY = -Math.cos(radians);
+        double forwardMovement = movementX * forwardX + movementY * forwardY;
+        exhaustActive = Math.hypot(movementX, movementY) > FORWARD_MOVEMENT_THRESHOLD
+                && forwardMovement > FORWARD_MOVEMENT_THRESHOLD;
+        if (exhaustActive) {
+            exhaustFrameIndex = (exhaustTick / EXHAUST_FRAME_TICKS) % EXHAUST_UP.length;
+            exhaustTick++;
+        } else {
+            exhaustTick = 0;
+            exhaustFrameIndex = 0;
+        }
     }
 
     private static double approachAngle(double current, double target, double step) {
@@ -111,11 +158,57 @@ public class Enemy extends Sprite {
 
     private Image frameForAngle() {
         BufferedImage base = (health < maxHealth ? BASE_CRACKED : BASE_NORMAL)[kind - 1];
-        int bucket = (int) (Math.round(facingAngle / 10.0) * 10) % 360;
-        if (bucket < 0) bucket += 360;
+        int bucket = angleBucket();
         final int b = bucket;
         return ROT_CACHE.computeIfAbsent(kind + (health < maxHealth ? "c" : "n") + b,
                 key -> rotate(base, b));
+    }
+
+    private int angleBucket() {
+        int bucket = (int) (Math.round(facingAngle / 10.0) * 10) % 360;
+        return bucket < 0 ? bucket + 360 : bucket;
+    }
+
+    public boolean isExhaustActive() {
+        return exhaustActive;
+    }
+
+    public Image getExhaustImage() {
+        if (!exhaustActive) {
+            return null;
+        }
+        int bucket = angleBucket();
+        String key = exhaustFrameIndex + ":" + bucket;
+        return EXHAUST_ROT_CACHE.computeIfAbsent(key,
+                ignored -> rotate(EXHAUST_UP[exhaustFrameIndex], bucket));
+    }
+
+    public int getExhaustX() {
+        Image exhaust = getExhaustImage();
+        if (exhaust == null) {
+            return x;
+        }
+        double radians = Math.toRadians(facingAngle);
+        double forwardX = Math.sin(radians);
+        double distanceBehind = Math.max(getImage().getWidth(null), getImage().getHeight(null)) * 0.48;
+        double centerX = x + getImage().getWidth(null) / 2.0 - forwardX * distanceBehind;
+        return (int) Math.round(centerX - exhaust.getWidth(null) / 2.0);
+    }
+
+    public int getExhaustY() {
+        Image exhaust = getExhaustImage();
+        if (exhaust == null) {
+            return y;
+        }
+        double radians = Math.toRadians(facingAngle);
+        double forwardY = -Math.cos(radians);
+        double distanceBehind = Math.max(getImage().getWidth(null), getImage().getHeight(null)) * 0.48;
+        double centerY = y + getImage().getHeight(null) / 2.0 - forwardY * distanceBehind;
+        return (int) Math.round(centerY - exhaust.getHeight(null) / 2.0);
+    }
+
+    int getExhaustFrameIndex() {
+        return exhaustFrameIndex;
     }
 
     public void configure(double speed, double drift, int hitPoints, int points) {

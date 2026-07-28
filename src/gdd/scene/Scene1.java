@@ -16,6 +16,7 @@ import gdd.sprite.Alien1;
 import gdd.sprite.Boss;
 import gdd.sprite.BossBullet;
 import gdd.sprite.BossExplosion;
+import gdd.sprite.BossFlame;
 import gdd.sprite.Enemy;
 import gdd.sprite.EnemyBullet;
 import gdd.sprite.Explosion;
@@ -50,6 +51,8 @@ public class Scene1 extends JPanel {
     private static final int SHOT_LIMIT = 30;
     private static final int RUSH_DURATION = 90 * 60;
     private static final int CAMPAIGN_WAVES = 3;
+    static final int CAMPAIGN_STAGE_DURATION_FRAMES = 5 * 60 * 60;
+    private static final int CAMPAIGN_ACTIVE_ENEMY_LIMIT = 12;
     private static final int POWERUP_DURATION = 900; // ~15 seconds
     private static final int COUNTDOWN_FRAMES = 236; // 3, 2, 1, START!
 
@@ -68,6 +71,7 @@ public class Scene1 extends JPanel {
     private Boss boss;
     private boolean bossStarted;
     private final List<BossBullet> bossBullets = new ArrayList<>();
+    private final List<BossFlame> bossFlames = new ArrayList<>();
     private BossExplosion bossBlast;
     private int bossFireTimer = 80;
     private boolean pendingVictory;
@@ -80,8 +84,6 @@ public class Scene1 extends JPanel {
     private int score;
     private int highScore;
     private int kills;
-    private int waveSpawned;
-    private int waveTarget;
     private int lives = PLAYER_LIVES;
     private int hp = PLAYER_MAX_HP;
     private int combo = 1;
@@ -178,13 +180,13 @@ public class Scene1 extends JPanel {
 
     private void prepareWave() {
         waveFrame = 0;
-        waveSpawned = 0;
         bannerTimer = 150;
         enemies.clear();
         enemyBullets.clear();
+        bossBullets.clear();
+        bossFlames.clear();
         shots.clear();
         powerups.clear();
-        waveTarget = 10 + level * 5;
     }
 
     private void update() {
@@ -239,8 +241,12 @@ public class Scene1 extends JPanel {
         }
         int interval = mode == GameMode.RUSH ? Math.max(22, 48 - difficulty * 2)
                 : Math.max(30, 74 - difficulty * 8);
-        boolean canSpawn = mode != GameMode.CAMPAIGN || waveSpawned < waveTarget;
-        if (canSpawn && frame % interval == 0) {
+        boolean campaignStageRunning = mode != GameMode.CAMPAIGN
+                || !isCampaignStageTimeComplete(waveFrame);
+        int spawnClock = mode == GameMode.CAMPAIGN ? waveFrame : frame;
+        boolean belowActiveLimit = mode != GameMode.CAMPAIGN
+                || enemies.size() < CAMPAIGN_ACTIVE_ENEMY_LIMIT;
+        if (campaignStageRunning && belowActiveLimit && spawnClock % interval == 0) {
             int kind = random.nextInt(2) + 1; // both enemy types spawn in every stage
             createEnemy(randomY(), difficulty, kind);
         }
@@ -265,7 +271,6 @@ public class Scene1 extends JPanel {
         int hp = kind == 1 ? 2 : 1; // type 1 is tankier, type 2 is fast and fragile
         int points = kind == 1 ? 150 : 120;
         enemies.add(new Alien1(BOARD_WIDTH + 40, y, speed, drift, hp, points, kind));
-        waveSpawned++;
     }
 
     private void updatePowerUps() {
@@ -345,7 +350,7 @@ public class Scene1 extends JPanel {
                         SoundFx.play(SFX_BOSS_HIT);
                         score += 50;
                         burst(shot.getX(), shot.getY(), new Color(255, 180, 80), 6);
-                        if (boss.hit(5)) {
+                        if (damageBoss(5)) {
                             onBossDefeated();
                         }
                     }
@@ -354,7 +359,7 @@ public class Scene1 extends JPanel {
                     SoundFx.play(SFX_BOSS_HIT);
                     score += 50;
                     burst(shot.getX(), shot.getY(), new Color(255, 180, 80), 6);
-                    if (boss.hit(1)) {
+                    if (damageBoss(1)) {
                         onBossDefeated();
                     }
                 }
@@ -364,6 +369,11 @@ public class Scene1 extends JPanel {
             }
         }
         enemies.removeIf(enemy -> !enemy.isVisible());
+    }
+
+    private boolean damageBoss(int damage) {
+        player.gainBossDamageCharge(damage);
+        return boss.hit(damage);
     }
 
     private void killEnemy(Enemy enemy) {
@@ -378,7 +388,6 @@ public class Scene1 extends JPanel {
         burst(enemy.getX() + 25, enemy.getY() + 25,
                 combo >= 4 ? new Color(255, 90, 220) : new Color(80, 225, 255), 16);
         screenShake = Math.min(9, 3 + combo / 2);
-        player.gainCharge(9); // build the ultimate meter on kills
     }
 
     private void updateEnemyBullets() {
@@ -397,6 +406,10 @@ public class Scene1 extends JPanel {
     }
 
     private void damagePlayer(int amount) {
+        damagePlayer(amount, 45);
+    }
+
+    private void damagePlayer(int amount, int hitInvulnerabilityFrames) {
         if (invulnerableFrames > 0 || ended) {
             return;
         }
@@ -415,7 +428,7 @@ public class Scene1 extends JPanel {
                 finish(false, "GAME OVER");
             }
         } else {
-            invulnerableFrames = 45;
+            invulnerableFrames = Math.max(1, hitInvulnerabilityFrames);
         }
     }
 
@@ -440,8 +453,12 @@ public class Scene1 extends JPanel {
             finish(true, "TIME UP");
             return;
         }
-        // campaign: stage 1 -> 2 -> 3 (boss). Boss victory handled in onBossDefeated.
-        if (mode == GameMode.CAMPAIGN && level < 3 && waveSpawned >= waveTarget && enemies.isEmpty()) {
+        // Campaign stages 1 and 2 each run for a full five minutes. The
+        // scrolling background is procedural, and active enemies are capped,
+        // so play continues for the whole stage without unbounded buildup.
+        // Stage 3 remains the defeat-based boss fight.
+        if (mode == GameMode.CAMPAIGN && level < 3
+                && isCampaignStageTimeComplete(waveFrame)) {
             level++;
             score += 750 * level;
             prepareWave();
@@ -456,11 +473,21 @@ public class Scene1 extends JPanel {
                 damagePlayer(DMG_CONTACT);
             }
             if (!boss.isEntering() && --bossFireTimer <= 0) {
-                bossBullets.add(new BossBullet(boss.getX() + boss.getWidth() / 2,
-                        boss.getY() + boss.getHeight() / 2,
-                        player.getX() + player.getWidth() / 2,
-                        player.getY() + player.getHeight() / 2));
-                bossFireTimer = 70 + random.nextInt(45);
+                int originX = boss.getX() + boss.getWidth() / 2;
+                int originY = boss.getY() + boss.getHeight() / 2;
+                if (random.nextInt(3) == 0) {
+                    // Attack #2 covers a broad random zone around the centre
+                    // of the player's half instead of tracking the player.
+                    int targetX = BOARD_WIDTH / 6 + random.nextInt(BOARD_WIDTH / 6 + 1);
+                    int targetY = BOARD_HEIGHT / 4 + random.nextInt(BOARD_HEIGHT / 2);
+                    bossFlames.add(new BossFlame(originX, originY, targetX, targetY));
+                    bossFireTimer = 120 + random.nextInt(60);
+                } else {
+                    bossBullets.add(new BossBullet(originX, originY,
+                            player.getX() + player.getWidth() / 2,
+                            player.getY() + player.getHeight() / 2));
+                    bossFireTimer = 75 + random.nextInt(50);
+                }
             }
         }
         Iterator<BossBullet> it = bossBullets.iterator();
@@ -472,6 +499,18 @@ public class Scene1 extends JPanel {
             } else if (invulnerableFrames == 0 && b.collideWithOther(player)) {
                 it.remove();
                 damagePlayer(b.getDamage());
+            }
+        }
+        Iterator<BossFlame> flameIterator = bossFlames.iterator();
+        while (flameIterator.hasNext()) {
+            BossFlame flame = flameIterator.next();
+            flame.act();
+            if (!flame.isVisible()) {
+                flameIterator.remove();
+            } else if (flame.collideWithOther(player)) {
+                // A flame is not consumed on contact. Remaining inside it
+                // applies another 2% damage after each short damage tick.
+                damagePlayer(flame.getDamage(), BossFlame.DAMAGE_INTERVAL_FRAMES);
             }
         }
         if (bossBlast != null) {
@@ -699,6 +738,10 @@ public class Scene1 extends JPanel {
             g.drawImage(powerup.getImage(), powerup.getX(), powerup.getY(), this);
         }
         for (Enemy enemy : enemies) {
+            Image exhaust = enemy.getExhaustImage();
+            if (exhaust != null) {
+                g.drawImage(exhaust, enemy.getExhaustX(), enemy.getExhaustY(), this);
+            }
             g.setColor(new Color(255, 55, 180, 35));
             g.fillOval(enemy.getX() - 6, enemy.getY() - 6, 66, 66);
             g.drawImage(enemy.getImage(), enemy.getX(), enemy.getY(), this);
@@ -722,6 +765,9 @@ public class Scene1 extends JPanel {
         }
         for (BossBullet b : bossBullets) {
             g.drawImage(b.getImage(), b.getX(), b.getY(), this);
+        }
+        for (BossFlame flame : bossFlames) {
+            g.drawImage(flame.getImage(), flame.getX(), flame.getY(), this);
         }
         if (bossBlast != null) {
             g.drawImage(bossBlast.getImage(), bossBlast.getX(), bossBlast.getY(), this);
@@ -761,9 +807,26 @@ public class Scene1 extends JPanel {
         g.setFont(Fonts.get(16f));
         g.setColor(new Color(255, 105, 165));
         g.drawString("LIVES " + lives, BOARD_WIDTH - 150, 40);
-        String stage = mode == GameMode.CAMPAIGN ? "WAVE " + level + "/" + CAMPAIGN_WAVES : mode.getLabel();
+        String stage;
+        if (mode == GameMode.CAMPAIGN && level < CAMPAIGN_WAVES) {
+            stage = "W" + level + "/" + CAMPAIGN_WAVES + "  " + formatStageTime(waveFrame);
+        } else if (mode == GameMode.CAMPAIGN) {
+            stage = "W" + level + "/" + CAMPAIGN_WAVES + "  BOSS";
+        } else {
+            stage = mode.getLabel();
+        }
         g.setColor(new Color(140, 220, 255));
         g.drawString(stage, BOARD_WIDTH - 150, 60);
+    }
+
+    static String formatStageTime(int elapsedFrames) {
+        int remainingFrames = Math.max(0, CAMPAIGN_STAGE_DURATION_FRAMES - elapsedFrames);
+        int remainingSeconds = (remainingFrames + 59) / 60;
+        return String.format("%d:%02d", remainingSeconds / 60, remainingSeconds % 60);
+    }
+
+    static boolean isCampaignStageTimeComplete(int elapsedFrames) {
+        return elapsedFrames >= CAMPAIGN_STAGE_DURATION_FRAMES;
     }
 
     private void drawPowerBar(Graphics2D g) {

@@ -9,11 +9,12 @@ This is our Space Invaders game made with Java Swing.
 
 The game has three modes:
 
-- Campaign: complete three waves
+- Campaign: survive two five-minute scrolling stages, then defeat the stage-three boss
 - Endless: play until all lives are lost
 - Rush: get as many points as possible in 90 seconds
 
 There are also speed and multi-shot power-ups.
+Enemies use a five-frame exhaust animation only while moving forward.
 
 ## Controls
 

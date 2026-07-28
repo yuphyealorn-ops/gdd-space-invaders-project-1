@@ -4,11 +4,15 @@ import static gdd.Global.*;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
 
-// Boss Attack #1: a plasma bomb aimed straight at the player when fired. It
-// animates travel -> growing ball -> fade from boss_attack.png, moves faster
-// than a normal enemy bomb, and deals high damage.
-public class BossBullet extends Sprite {
+// Boss Attack #2: a flame aimed at a random point in the player's half of the
+// board. The complete travel -> ignite -> fade sequence is paced to reach that
+// point, then the flame keeps travelling until it has left the board.
+public class BossFlame extends Sprite {
 
+    public static final int DAMAGE_PER_TICK = 2;
+    public static final int DAMAGE_INTERVAL_FRAMES = 30;
+
+    private static final double SPEED = 4.0;
     private static final int OFFSCREEN_MARGIN = 20;
     private static Image[] frames;
 
@@ -20,46 +24,43 @@ public class BossBullet extends Sprite {
     private int animTick;
     private int frameIndex;
 
-    public BossBullet(int startCenterX, int startCenterY, int targetCenterX, int targetCenterY) {
+    public BossFlame(int startCenterX, int startCenterY, int targetCenterX, int targetCenterY) {
         centerX = startCenterX;
         centerY = startCenterY;
+
         double dx = targetCenterX - startCenterX;
         double dy = targetCenterY - startCenterY;
-        double len = Math.max(1.0, Math.hypot(dx, dy));
-        double speed = 5.5; // faster than the enemy bomb
-        velocityX = dx / len * speed;
-        velocityY = dy / len * speed;
-
-        // Pace the one-shot sprite sequence to the left edge. Reaching the
-        // final fade frame no longer ends the projectile.
-        double ticksToLeft = velocityX < -0.01
-                ? (startCenterX + OFFSCREEN_MARGIN) / -velocityX
-                : len / speed;
+        double distance = Math.max(1.0, Math.hypot(dx, dy));
+        velocityX = dx / distance * SPEED;
+        velocityY = dy / distance * SPEED;
         animationTravelTicks = Math.max(frames().length,
-                (int) Math.ceil(ticksToLeft));
+                (int) Math.ceil(distance / SPEED));
+
         applyFrame(0);
     }
 
     private static Image[] frames() {
         if (frames == null) {
             BufferedImage sheet = loadSheet(IMG_BOSS_ATTACK);
-            int[][] r = {
-                {47, 92, 5, 5},
-                {66, 87, 13, 12}, {88, 87, 18, 14}, {118, 89, 17, 11}, {152, 91, 13, 7}, // travel
-                {182, 91, 7, 7}, {205, 90, 11, 10}, {229, 86, 16, 17}, {261, 82, 26, 26},
-                {309, 80, 31, 30}, {360, 76, 37, 38}, {415, 74, 42, 41}, {476, 71, 46, 47}, // grow
-                {538, 70, 50, 49}, {603, 68, 53, 54} // fade
+            int[][] rectangles = {
+                {42, 193, 7, 8},
+                {59, 189, 18, 12}, {86, 189, 29, 14}, {126, 189, 44, 12},
+                {186, 189, 34, 9}, {243, 189, 20, 9},
+                {281, 178, 23, 27}, {324, 172, 25, 26}, {371, 168, 35, 41},
+                {430, 166, 40, 48}, {493, 167, 41, 51}, {555, 167, 42, 52},
+                {616, 170, 39, 48}
             };
-            frames = new Image[r.length];
-            for (int i = 0; i < r.length; i++) {
-                frames[i] = clip(sheet, r[i][0], r[i][1], r[i][2], r[i][3], 2, false);
+            frames = new Image[rectangles.length];
+            for (int i = 0; i < rectangles.length; i++) {
+                int[] r = rectangles[i];
+                frames[i] = clip(sheet, r[0], r[1], r[2], r[3], 2, false);
             }
         }
         return frames;
     }
 
     public int getDamage() {
-        return 35; // a little stronger than the enemy bomb (30)
+        return DAMAGE_PER_TICK;
     }
 
     @Override
@@ -67,9 +68,11 @@ public class BossBullet extends Sprite {
         centerX += velocityX;
         centerY += velocityY;
         animTick++;
+
         int nextFrame = Math.min(frames().length - 1,
                 animTick * frames().length / animationTravelTicks);
         applyFrame(nextFrame);
+
         if (x + getImage().getWidth(null) < -OFFSCREEN_MARGIN
                 || x > BOARD_WIDTH + OFFSCREEN_MARGIN
                 || y + getImage().getHeight(null) < -OFFSCREEN_MARGIN
@@ -91,5 +94,9 @@ public class BossBullet extends Sprite {
 
     double getCenterX() {
         return centerX;
+    }
+
+    double getCenterY() {
+        return centerY;
     }
 }

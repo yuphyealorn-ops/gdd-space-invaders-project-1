@@ -10,9 +10,11 @@ import java.util.Map;
 //  - BULLET: fast, 20% dmg. Small travel sprite from EnemySpriteEffect.png,
 //            rotated to point along its travel direction (fixed at fire time).
 //  - BOMB:   slow, 30% dmg. enemy_projectile.png frames (full size) played in
-//            order once, then fades out after the final frame.
+//            order over its trip across the board. The sheet frames contain
+//            their own fade; animation completion does not end the projectile.
 public class EnemyBullet extends Sprite {
 
+    private static final int BOMB_ANIMATION_END_X = -40;
     private static Image[] bombFrames;
     private static BufferedImage travelBase;
     private static final Map<String, Image> ROT = new HashMap<>();
@@ -21,10 +23,10 @@ public class EnemyBullet extends Sprite {
     private final double velocityY;
     private final boolean bomb;
     private final int rotDeg;
+    private final double startX;
     private double preciseX;
     private double preciseY;
-    private int animTick;
-    private float alpha = 1f;
+    private int frameIndex;
 
     public EnemyBullet(int x, int y, double velocityX, double velocityY) {
         this(x, y, velocityX, velocityY, false);
@@ -33,6 +35,7 @@ public class EnemyBullet extends Sprite {
     public EnemyBullet(int x, int y, double velocityX, double velocityY, boolean bomb) {
         this.preciseX = x;
         this.preciseY = y;
+        this.startX = x;
         this.x = x;
         this.y = y;
         this.velocityX = velocityX;
@@ -83,7 +86,7 @@ public class EnemyBullet extends Sprite {
     }
 
     public float getAlpha() {
-        return alpha;
+        return 1f;
     }
 
     @Override
@@ -92,23 +95,22 @@ public class EnemyBullet extends Sprite {
         preciseY += velocityY;
         x = (int) preciseX;
         y = (int) preciseY;
-        animTick++;
         if (bomb) {
-            int idx = animTick / 4;
-            if (idx < bombFrames().length) {
-                setImage(bombFrames()[idx]);
-            } else {
-                setImage(bombFrames()[bombFrames().length - 1]);
-                alpha -= 0.03f;
-                if (alpha <= 0f) {
-                    die();
-                }
-            }
+            double travelDistance = Math.max(1.0, startX - BOMB_ANIMATION_END_X);
+            double progress = Math.max(0.0,
+                    Math.min(1.0, (startX - preciseX) / travelDistance));
+            frameIndex = Math.min(bombFrames().length - 1,
+                    (int) (progress * bombFrames().length));
+            setImage(bombFrames()[frameIndex]);
         } else {
             setImage(rotatedTravel());
         }
         if (x < -80 || y < -80 || y > BOARD_HEIGHT + 80) {
             die();
         }
+    }
+
+    int getFrameIndex() {
+        return frameIndex;
     }
 }
