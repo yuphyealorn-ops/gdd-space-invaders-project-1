@@ -211,6 +211,14 @@ public class Enemy extends Sprite {
         return (int) Math.round(centerY - exhaust.getHeight(null) / 2.0);
     }
 
+    public double getFacingDirectionX() {
+        return Math.sin(Math.toRadians(facingAngle));
+    }
+
+    public double getFacingDirectionY() {
+        return -Math.cos(Math.toRadians(facingAngle));
+    }
+
     int getExhaustFrameIndex() {
         return exhaustFrameIndex;
     }

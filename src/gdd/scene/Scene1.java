@@ -318,8 +318,19 @@ public class Scene1 extends JPanel {
             int fireOdds = mode == GameMode.RUSH ? 150 : 210;
             if (enemyBullets.size() < 40 && random.nextInt(fireOdds) == 0) {
                 boolean bomb = random.nextInt(2) == 0; // ~50% bombs (both stages shoot both)
-                double vy = Math.max(-1.4, Math.min(1.4, (player.getY() - enemy.getY()) / 260.0));
-                double vx = bomb ? -2.2 : -6.6; // bomb slow + high damage, bullet 50% faster
+                double vx;
+                double vy;
+                if (bomb) {
+                    // Keep the existing slow bomb path unchanged.
+                    vx = -2.2;
+                    vy = Math.max(-1.4,
+                            Math.min(1.4, (player.getY() - enemy.getY()) / 260.0));
+                } else {
+                    // The regular shot follows the direction in which the
+                    // enemy sprite is facing at the instant it fires.
+                    vx = enemy.getFacingDirectionX() * 6.6;
+                    vy = enemy.getFacingDirectionY() * 6.6;
+                }
                 enemyBullets.add(new EnemyBullet(enemy.getX(), enemy.getY() + 20, vx, vy, bomb));
             }
         }
@@ -401,11 +412,18 @@ public class Scene1 extends JPanel {
         while (iterator.hasNext()) {
             EnemyBullet bullet = iterator.next();
             bullet.act();
-            if (invulnerableFrames == 0 && bullet.collideWithOther(player)) {
-                iterator.remove();
-                damagePlayer(bullet.getDamage());
-            } else if (!bullet.isVisible() || bullet.getX() < -40 || bullet.getY() < -40
-                    || bullet.getY() > BOARD_HEIGHT + 40) {
+            if (invulnerableFrames == 0 && bullet.canDamagePlayer()
+                    && bullet.collideWithOther(player)) {
+                if (bullet.isPlasma()) {
+                    iterator.remove();
+                    damagePlayer(bullet.getDamage());
+                } else if (bullet.beginImpact()) {
+                    damagePlayer(bullet.getDamage());
+                }
+            } else if (!bullet.isVisible()
+                    || (!bullet.isImpacting()
+                    && (bullet.getX() < -40 || bullet.getY() < -40
+                    || bullet.getY() > BOARD_HEIGHT + 40))) {
                 iterator.remove();
             }
         }

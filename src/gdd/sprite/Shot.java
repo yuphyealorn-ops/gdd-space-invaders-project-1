@@ -12,7 +12,13 @@ import java.util.Map;
 public class Shot extends Sprite {
 
     private static final int SPEED = 12;
-    private static BufferedImage shotBase;
+    private static final int NORMAL_FRAME_HOLD_TICKS = 3;
+    private static final int[][] NORMAL_RECTS = {
+        {290, 38, 4, 4},
+        {280, 37, 8, 6},
+        {266, 37, 12, 6}
+    };
+    private static BufferedImage[] shotFrames;
     private static Image[] ultFrames;
     private static final Map<String, Image> ROT = new HashMap<>();
 
@@ -21,6 +27,7 @@ public class Shot extends Sprite {
     private final boolean piercing;
     private final int rotDeg;
     private int animTick;
+    private int normalFrameIndex;
     private boolean bossHit;
 
     public Shot(int x, int y) {
@@ -37,7 +44,7 @@ public class Shot extends Sprite {
         this.velocityX = piercing ? 6 : SPEED; // ultimate starts slow then accelerates
         int deg = (int) Math.round(Math.toDegrees(Math.atan2(velocityY, this.velocityX)));
         this.rotDeg = ((deg % 360) + 360) % 360;
-        setImage(piercing ? ultFrames()[0] : rotated(shotBase()));
+        setImage(piercing ? ultFrames()[0] : rotatedNormalFrame(0));
         setX(x);
         setY(y - getImage().getHeight(null) / 2);
     }
@@ -54,12 +61,17 @@ public class Shot extends Sprite {
         bossHit = true;
     }
 
-    private static BufferedImage shotBase() {
-        if (shotBase == null) {
+    private static BufferedImage[] shotFrames() {
+        if (shotFrames == null) {
             BufferedImage sheet = loadSheet(IMG_PLAYER_SHEET);
-            shotBase = scaleImage(sheet.getSubimage(280, 15, 8, 3), 20, 7); // player_shot, small
+            shotFrames = new BufferedImage[NORMAL_RECTS.length];
+            for (int i = 0; i < NORMAL_RECTS.length; i++) {
+                int[] r = NORMAL_RECTS[i];
+                shotFrames[i] = scaleImage(sheet.getSubimage(r[0], r[1], r[2], r[3]),
+                        r[2] * PLAYER_SCALE, r[3] * PLAYER_SCALE);
+            }
         }
-        return shotBase;
+        return shotFrames;
     }
 
     private static Image[] ultFrames() {
@@ -76,11 +88,27 @@ public class Shot extends Sprite {
         return ultFrames;
     }
 
-    private Image rotated(BufferedImage base) {
+    private Image rotatedNormalFrame(int frameIndex) {
+        BufferedImage base = shotFrames()[frameIndex];
         if (rotDeg == 0) {
             return base;
         }
-        return ROT.computeIfAbsent(String.valueOf(rotDeg), k -> rotate(base, rotDeg));
+        String key = frameIndex + ":" + rotDeg;
+        return ROT.computeIfAbsent(key, k -> rotate(base, rotDeg));
+    }
+
+    private void applyNormalFrame(int frameIndex) {
+        Image nextImage = rotatedNormalFrame(frameIndex);
+        Image previousImage = getImage();
+        if (previousImage != null) {
+            x += previousImage.getWidth(null) / 2 - nextImage.getWidth(null) / 2;
+            y += previousImage.getHeight(null) / 2 - nextImage.getHeight(null) / 2;
+        }
+        setImage(nextImage);
+    }
+
+    int getNormalFrameIndex() {
+        return normalFrameIndex;
     }
 
     @Override
@@ -91,6 +119,10 @@ public class Shot extends Sprite {
         if (piercing) {
             velocityX = Math.min(30, velocityX + 1); // accelerate slow -> fast
             setImage(ultFrames()[Math.min(2, animTick / 6)]);
+        } else {
+            normalFrameIndex = Math.min(shotFrames().length - 1,
+                    animTick / NORMAL_FRAME_HOLD_TICKS);
+            applyNormalFrame(normalFrameIndex);
         }
     }
 }
