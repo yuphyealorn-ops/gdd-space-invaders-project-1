@@ -1,38 +1,57 @@
 package gdd.sprite;
 
 import static gdd.Global.*;
+import java.awt.Image;
+import java.awt.image.BufferedImage;
 
+// Side-scroll enemy: enters from the right, flies left toward the player,
+// weaving vertically. Uses Enemy1.png rotated to face left.
 public class Enemy extends Sprite {
+
+    private static Image enemyImage;
 
     protected double preciseX;
     protected double preciseY;
-    protected double fallSpeed = 1.0;
-    protected double driftSpeed;
+    protected double fallSpeed = 1.0;   // leftward speed in side-scroll
+    protected double driftSpeed;        // vertical drift
+    protected double weavePhase;
     protected int health = 1;
     protected int scoreValue = 100;
 
-    // private Bomb bomb;
-
     public Enemy(int x, int y) {
-
         initEnemy(x, y);
     }
 
-    private void initEnemy(int x, int y) {
+    private static Image enemyImage() {
+        if (enemyImage == null) {
+            BufferedImage src = loadSheet(IMG_ENEMY1);
+            BufferedImage rotated = rotate(src, 90); // Enemy1 faces down -> face left
+            int targetH = 56;
+            int targetW = Math.max(1, rotated.getWidth() * targetH / rotated.getHeight());
+            enemyImage = scaleImage(rotated, targetW, targetH);
+        }
+        return enemyImage;
+    }
 
+    private void initEnemy(int x, int y) {
         this.x = x;
         this.y = y;
         this.preciseX = x;
         this.preciseY = y;
-
-        // bomb = new Bomb(x, y);
-
-        setImage(loadScaledImage(IMG_ENEMY, SCALE_FACTOR));
+        this.weavePhase = Math.random() * Math.PI * 2;
+        setImage(enemyImage());
     }
 
     public void act(int direction) {
-        preciseX += driftSpeed;
-        preciseY += fallSpeed;
+        weavePhase += 0.05;
+        preciseX -= fallSpeed;
+        preciseY += driftSpeed + Math.sin(weavePhase) * 0.7;
+        if (preciseY < 30) {
+            preciseY = 30;
+        }
+        if (preciseY > BOARD_HEIGHT - 70) {
+            preciseY = BOARD_HEIGHT - 70;
+        }
         this.x = (int) preciseX;
         this.y = (int) preciseY;
     }
@@ -52,42 +71,4 @@ public class Enemy extends Sprite {
     public int getScoreValue() {
         return scoreValue;
     }
-/* 
-    public Bomb getBomb() {
-
-        return bomb;
-    }
-
-    public class Bomb extends Sprite {
-
-        private boolean destroyed;
-
-        public Bomb(int x, int y) {
-
-            initBomb(x, y);
-        }
-
-        private void initBomb(int x, int y) {
-
-            setDestroyed(true);
-
-            this.x = x;
-            this.y = y;
-
-            var bombImg = "src/images/bomb.png";
-            var ii = new ImageIcon(bombImg);
-            setImage(ii.getImage());
-        }
-
-        public void setDestroyed(boolean destroyed) {
-
-            this.destroyed = destroyed;
-        }
-
-        public boolean isDestroyed() {
-
-            return destroyed;
-        }
-    }
-*/
 }
