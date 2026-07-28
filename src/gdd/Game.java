@@ -15,7 +15,7 @@ public class Game extends JFrame {
     }
 
     private void setupWindow() {
-        setTitle("Space Invaders");
+        setTitle("Nebula Strike");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(false);
         getContentPane().setPreferredSize(
