@@ -8,10 +8,12 @@ import gdd.MapLoader;
 import gdd.SoundFx;
 import gdd.SpawnDetails;
 import static gdd.Global.*;
+import gdd.powerup.Healing;
 import gdd.powerup.MultiShot;
 import gdd.powerup.PowerUp;
 import gdd.powerup.SpeedUp;
 import gdd.sprite.Alien1;
+import gdd.sprite.Boss;
 import gdd.sprite.Enemy;
 import gdd.sprite.EnemyBullet;
 import gdd.sprite.Explosion;
@@ -60,6 +62,8 @@ public class Scene1 extends JPanel {
     private final List<Particle> particles = new ArrayList<>();
 
     private Player player;
+    private Boss boss;
+    private boolean bossStarted;
     private Timer timer;
     private AudioPlayer music;
     private int[][] starMap = new int[0][0];
@@ -182,6 +186,7 @@ public class Scene1 extends JPanel {
         }
         if (countdown > 0) {
             countdown--;
+            frame++; // keep the background scrolling during the countdown
             return;
         }
         frame++;
@@ -210,10 +215,17 @@ public class Scene1 extends JPanel {
         updateEnemyBullets();
         updateParticles();
         updateExplosions();
+        updateBoss();
         checkProgress();
     }
 
     private void spawnForMode() {
+        if (mode == GameMode.CAMPAIGN && level >= 3) {
+            if (!bossStarted) {
+                startBossFight();
+            }
+            return; // stage 3 is the boss fight
+        }
         int difficulty = mode == GameMode.CAMPAIGN ? level : 1 + frame / 1200;
         if (mode != GameMode.CAMPAIGN) {
             level = difficulty;
@@ -222,11 +234,17 @@ public class Scene1 extends JPanel {
                 : Math.max(30, 74 - difficulty * 8);
         boolean canSpawn = mode != GameMode.CAMPAIGN || waveSpawned < waveTarget;
         if (canSpawn && frame % interval == 0) {
-            createEnemy(randomY(), difficulty);
+            // stage 1 = type 1 only; stage 2+ and rush = both types
+            int kind = (mode == GameMode.CAMPAIGN && level < 2) ? 1 : (random.nextInt(2) + 1);
+            createEnemy(randomY(), difficulty, kind);
         }
         if (frame > 0 && frame % 720 == 0) {
-            powerups.add(random.nextBoolean() ? new SpeedUp(BOARD_WIDTH + 40, randomY())
-                    : new MultiShot(BOARD_WIDTH + 40, randomY()));
+            if (hp < PLAYER_MAX_HP && random.nextInt(3) == 0) {
+                powerups.add(new Healing(BOARD_WIDTH + 40, randomY()));
+            } else {
+                powerups.add(random.nextBoolean() ? new SpeedUp(BOARD_WIDTH + 40, randomY())
+                        : new MultiShot(BOARD_WIDTH + 40, randomY()));
+            }
         }
     }
 
@@ -234,13 +252,13 @@ public class Scene1 extends JPanel {
         return 50 + random.nextInt(Math.max(1, BOARD_HEIGHT - 170));
     }
 
-    private void createEnemy(int y, int difficulty) {
+    private void createEnemy(int y, int difficulty, int kind) {
         double modeBoost = mode == GameMode.RUSH ? .5 : 0;
         double speed = 1.1 + difficulty * .22 + modeBoost + random.nextDouble() * .5;
         double drift = (random.nextDouble() - .5) * 1.2;
-        int hp = difficulty >= 2 && random.nextInt(100) < Math.min(45, difficulty * 10) ? 2 : 1;
-        int points = hp == 2 ? 220 : 100;
-        enemies.add(new Alien1(BOARD_WIDTH + 40, y, speed, drift, hp, points));
+        int hp = kind == 1 ? 2 : 1; // type 1 is tankier, type 2 is fast and fragile
+        int points = kind == 1 ? 150 : 120;
+        enemies.add(new Alien1(BOARD_WIDTH + 40, y, speed, drift, hp, points, kind));
         waveSpawned++;
     }
 
@@ -255,6 +273,8 @@ public class Scene1 extends JPanel {
                     speedTimer = POWERUP_DURATION;
                 } else if (powerup instanceof MultiShot) {
                     multiTimer = POWERUP_DURATION;
+                } else if (powerup instanceof Healing) {
+                    hp = Math.min(PLAYER_MAX_HP, hp + 40);
                 }
                 score += 250;
                 SoundFx.play(SFX_POWERUP);
@@ -267,27 +287,26 @@ public class Scene1 extends JPanel {
     }
 
     private void updateEnemies() {
+        int pcx = player.getX() + player.getWidth() / 2;
+        int pcy = player.getY() + player.getHeight() / 2;
         Iterator<Enemy> iterator = enemies.iterator();
         while (iterator.hasNext()) {
             Enemy enemy = iterator.next();
-            enemy.act(0);
-            if (enemy.getX() < -10) {
-                iterator.remove();
-                finish(false, "GAME OVER");
-                return;
-            }
+            enemy.act(pcx, pcy);
+            // enemies strafe on the right and never cross the left border (no auto game over)
             if (invulnerableFrames == 0 && enemy.collideWithOther(player)) {
                 explosions.add(new Explosion(enemy.getX() + 25, enemy.getY() + 25));
                 iterator.remove();
                 damagePlayer(DMG_CONTACT);
                 continue;
             }
+            boolean canShoot = mode != GameMode.CAMPAIGN || level >= 2; // stage 2+ start shooting bombs
             int fireOdds = mode == GameMode.RUSH ? 150 : 210;
-            if (enemyBullets.size() < 40 && enemy.getX() < BOARD_WIDTH - 20 && random.nextInt(fireOdds) == 0) {
-                boolean plasma = random.nextInt(6) == 0; // plasma is rarer than bullets
+            if (canShoot && enemyBullets.size() < 40 && random.nextInt(fireOdds) == 0) {
+                boolean bomb = random.nextInt(4) == 0; // bomb is rarer than bullets (25%)
                 double vy = Math.max(-1.4, Math.min(1.4, (player.getY() - enemy.getY()) / 260.0));
-                double vx = plasma ? -2.2 : -4.4; // plasma travels slowly so it can be dodged
-                enemyBullets.add(new EnemyBullet(enemy.getX(), enemy.getY() + 20, vx, vy, plasma));
+                double vx = bomb ? -2.2 : -4.4; // bomb travels slowly so it can be dodged
+                enemyBullets.add(new EnemyBullet(enemy.getX(), enemy.getY() + 20, vx, vy, bomb));
             }
         }
     }
@@ -299,31 +318,53 @@ public class Scene1 extends JPanel {
             shot.act();
             boolean consumed = false;
             for (Enemy enemy : enemies) {
-                if (enemy.isVisible() && shot.collideWithOther(enemy)) {
+                if (!enemy.isVisible() || !shot.collideWithOther(enemy)) {
+                    continue;
+                }
+                if (shot.isPiercing()) {
+                    killEnemy(enemy); // ultimate pierces through everything
+                } else {
                     consumed = true;
                     if (enemy.hit()) {
-                        enemy.die();
-                        kills++;
-                        combo = comboTimer > 0 ? Math.min(8, combo + 1) : 1;
-                        comboTimer = 150;
-                        score += enemy.getScoreValue() * combo;
-                        highScore = Math.max(highScore, score);
-                        explosions.add(new Explosion(enemy.getX() + 25, enemy.getY() + 25));
-                        SoundFx.play(SFX_EXPLOSION);
-                        burst(enemy.getX() + 25, enemy.getY() + 25,
-                                combo >= 4 ? new Color(255, 90, 220) : new Color(80, 225, 255), 16);
-                        screenShake = Math.min(9, 3 + combo / 2);
+                        killEnemy(enemy);
                     } else {
                         burst(shot.getX(), shot.getY(), new Color(255, 220, 80), 5);
                     }
                     break;
                 }
             }
-            if (consumed || shot.getX() > BOARD_WIDTH + 30 || shot.getY() < -30 || shot.getY() > BOARD_HEIGHT + 30) {
+            if (boss != null && boss.isVisible() && shot.collideWithOther(boss)) {
+                SoundFx.play(SFX_BOSS_HIT);
+                score += 50;
+                burst(shot.getX(), shot.getY(), new Color(255, 180, 80), 6);
+                boolean dead = boss.hit(shot.isPiercing() ? 5 : 1); // ultimate deals 5x to the boss
+                if (!shot.isPiercing()) {
+                    consumed = true;
+                }
+                if (dead) {
+                    onBossDefeated();
+                }
+            }
+            if (consumed || shot.getX() > BOARD_WIDTH + 40 || shot.getY() < -40 || shot.getY() > BOARD_HEIGHT + 40) {
                 shotIterator.remove();
             }
         }
         enemies.removeIf(enemy -> !enemy.isVisible());
+    }
+
+    private void killEnemy(Enemy enemy) {
+        enemy.die();
+        kills++;
+        combo = comboTimer > 0 ? Math.min(8, combo + 1) : 1;
+        comboTimer = 150;
+        score += enemy.getScoreValue() * combo;
+        highScore = Math.max(highScore, score);
+        explosions.add(new Explosion(enemy.getX() + 25, enemy.getY() + 25));
+        SoundFx.play(SFX_EXPLOSION);
+        burst(enemy.getX() + 25, enemy.getY() + 25,
+                combo >= 4 ? new Color(255, 90, 220) : new Color(80, 225, 255), 16);
+        screenShake = Math.min(9, 3 + combo / 2);
+        player.gainCharge(9); // build the ultimate meter on kills
     }
 
     private void updateEnemyBullets() {
@@ -386,16 +427,81 @@ public class Scene1 extends JPanel {
             finish(true, "TIME UP");
             return;
         }
-        if (mode == GameMode.CAMPAIGN && waveSpawned >= waveTarget && enemies.isEmpty()) {
-            if (level >= CAMPAIGN_WAVES) {
-                score += lives * 1000;
-                finish(true, "YOU WIN");
-            } else {
-                level++;
-                score += 750 * level;
-                prepareWave();
-            }
+        // campaign: stage 1 -> 2 -> 3 (boss). Boss victory handled in onBossDefeated.
+        if (mode == GameMode.CAMPAIGN && level < 3 && waveSpawned >= waveTarget && enemies.isEmpty()) {
+            level++;
+            score += 750 * level;
+            prepareWave();
+            switchStageMusic();
         }
+    }
+
+    private void updateBoss() {
+        if (boss == null || !boss.isVisible()) {
+            return;
+        }
+        boss.act();
+        if (invulnerableFrames == 0 && boss.collideWithOther(player)) {
+            damagePlayer(DMG_CONTACT);
+        }
+    }
+
+    private void startBossFight() {
+        bossStarted = true;
+        boss = new Boss();
+        enemies.clear();
+        enemyBullets.clear();
+        bannerTimer = 150;
+        switchMusic(SFX_BOSS_FIGHT);
+    }
+
+    private void onBossDefeated() {
+        SoundFx.play(SFX_BOSS_DEATH);
+        for (int i = 0; i < 6; i++) {
+            explosions.add(new Explosion(boss.getX() + random.nextInt(Math.max(1, boss.getWidth())),
+                    boss.getY() + random.nextInt(Math.max(1, boss.getHeight()))));
+        }
+        burst(boss.getX() + boss.getWidth() / 2, boss.getY() + boss.getHeight() / 2,
+                new Color(255, 180, 80), 60);
+        score += 5000 + lives * 1000;
+        finish(true, "YOU WIN");
+    }
+
+    private void switchStageMusic() {
+        if (mode == GameMode.CAMPAIGN && level == 2) {
+            switchMusic(MUSIC_STAGE2);
+        }
+    }
+
+    private void switchMusic(String path) {
+        stopMusic();
+        if (muted) {
+            return;
+        }
+        try {
+            music = new AudioPlayer(path);
+            music.play();
+        } catch (Exception e) {
+            System.err.println("Music unavailable: " + e.getMessage());
+        }
+    }
+
+    private void drawBossBar(Graphics2D g) {
+        if (boss == null || !boss.isVisible()) {
+            return;
+        }
+        int w = BOARD_WIDTH - 200;
+        int bx = 100;
+        int by = 84;
+        g.setColor(new Color(20, 20, 24));
+        g.fillRoundRect(bx, by, w, 12, 6, 6);
+        g.setColor(new Color(240, 70, 60));
+        g.fillRoundRect(bx, by, Math.max(0, w * boss.getHp() / boss.getMaxHp()), 12, 6, 6);
+        g.setColor(new Color(255, 150, 140));
+        g.drawRoundRect(bx, by, w, 12, 6, 6);
+        g.setFont(Fonts.get(14f));
+        g.setColor(new Color(255, 160, 150));
+        drawCentered(g, "BOSS", by + 26);
     }
 
     private void finish(boolean won, String message) {
@@ -436,6 +542,15 @@ public class Scene1 extends JPanel {
         }
     }
 
+    private void fireUltimate() {
+        int fx = player.getX() + player.getWidth();
+        int fy = player.getY() + player.getHeight() / 2;
+        shots.add(new Shot(fx, fy, 0, true)); // piercing beam
+        player.resetUlt();
+        SoundFx.play(SFX_SHOOT);
+        screenShake = 10;
+    }
+
     private void burst(int x, int y, Color color, int count) {
         for (int i = 0; i < count; i++) {
             double angle = random.nextDouble() * Math.PI * 2;
@@ -457,6 +572,7 @@ public class Scene1 extends JPanel {
         drawWorld(screen);
         screen.translate(-shakeX, -shakeY);
         drawHud(screen);
+        drawBossBar(screen);
         drawPowerBar(screen);
         if (countdown > 0) drawCountdown(screen);
         if (bannerTimer > 0 && !ended && countdown == 0) drawWaveBanner(screen);
@@ -562,6 +678,11 @@ public class Scene1 extends JPanel {
                 g.drawImage(bullet.getImage(), bullet.getX(), bullet.getY(), this);
             }
         }
+        if (boss != null && boss.isVisible()) {
+            g.setColor(new Color(255, 80, 60, 40));
+            g.fillOval(boss.getX() - 10, boss.getY() - 10, boss.getWidth() + 20, boss.getHeight() + 20);
+            g.drawImage(boss.getImage(), boss.getX(), boss.getY(), this);
+        }
         if (invulnerableFrames == 0 || frame % 10 < 5) {
             g.setColor(new Color(40, 220, 255, 30));
             g.fillOval(player.getX() - 8, player.getY() - 6, player.getWidth() + 16, player.getHeight() + 12);
@@ -606,6 +727,22 @@ public class Scene1 extends JPanel {
         int y = BOARD_HEIGHT - 34;
         drawPowerSlot(g, 20, y, "SPD", speedTimer, new Color(70, 240, 140));
         drawPowerSlot(g, 132, y, "MULTI", multiTimer, new Color(255, 90, 200));
+        drawUltSlot(g, 250, y);
+    }
+
+    private void drawUltSlot(Graphics2D g, int x, int y) {
+        boolean ready = player.ultReady();
+        g.setFont(Fonts.get(15f));
+        g.setColor(ready ? new Color(255, 220, 90) : new Color(95, 98, 108));
+        g.drawString("ULT", x, y + 16);
+        g.setColor(new Color(30, 32, 38));
+        g.fillRoundRect(x + 40, y + 4, 60, 14, 6, 6);
+        g.setColor(ready ? new Color(255, 220, 90) : new Color(120, 180, 255));
+        g.fillRoundRect(x + 40, y + 4, 60 * player.getUltCharge() / 100, 14, 6, 6);
+        if (ready) {
+            g.setColor(Color.WHITE);
+            g.drawString("X", x + 104, y + 16);
+        }
     }
 
     private void drawPowerSlot(Graphics2D g, int x, int y, String label, int timer, Color lit) {
@@ -726,6 +863,10 @@ public class Scene1 extends JPanel {
                 return;
             }
             if (!paused && !ended && countdown == 0) {
+                if (key == KeyEvent.VK_X && player.ultReady()) {
+                    fireUltimate();
+                    return;
+                }
                 player.keyPressed(e);
                 if (key == KeyEvent.VK_SPACE || key == KeyEvent.VK_ENTER) {
                     firing = true;
