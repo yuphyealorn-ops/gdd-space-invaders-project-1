@@ -49,7 +49,11 @@ public class Global {
     public static final String IMG_POWERUPS = "src/images/powerups.png";
     public static final String IMG_ENEMY_PROJECTILE = "src/images/enemy_projectile.png";
     public static final String IMG_ENEMY_EXPLOSION = "src/images/enemy_explosion.png";
-    public static final String IMG_BOSS = "src/images/boss_sprite.png";
+    public static final String IMG_BOSS = "src/images/boss_sprites.png";
+    public static final String IMG_BOSS_ATTACK = "src/images/boss_attack.png";
+    public static final String IMG_BOSS_EXPLOSION = "src/images/boss_explosion.png";
+    public static final String IMG_BOSS_EXPLOSION2 = "src/images/boss_explosion2.png";
+    public static final String IMG_BOSS_EXPLOSION3 = "src/images/boss_explosion3.png";
     public static final String IMG_SHOT = "src/images/shot.png";
     public static final String IMG_EXPLOSION = "src/images/explosion.png";
     public static final String IMG_TITLE = "src/images/TitleScreen.png";
