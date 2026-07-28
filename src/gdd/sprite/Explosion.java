@@ -4,8 +4,8 @@ import static gdd.Global.*;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
 
-// Animated explosion clipped from enemy_explosion.png (7 expanding frames),
-// centered on the point it is spawned at.
+// Animated explosion clipped from EnemySpriteEffect.png (5 frames), centered
+// on the point it is spawned at.
 public class Explosion extends Sprite {
 
     private static Image[] frames;
@@ -24,11 +24,10 @@ public class Explosion extends Sprite {
 
     private static Image[] frames() {
         if (frames == null) {
-            BufferedImage sheet = loadSheet(IMG_ENEMY_EXPLOSION);
+            BufferedImage sheet = loadSheet(IMG_ENEMY_EFFECT);
             int[][] r = {
-                {62, 70, 70, 69}, {223, 36, 129, 112}, {397, 19, 167, 152},
-                {580, 0, 182, 182}, {768, 0, 177, 176}, {11, 208, 173, 160},
-                {210, 216, 162, 152}
+                {409, 765, 45, 45}, {581, 737, 130, 118}, {782, 767, 184, 116},
+                {1012, 739, 157, 109}, {1215, 767, 178, 111}
             };
             frames = new Image[r.length];
             for (int i = 0; i < r.length; i++) {
@@ -51,7 +50,7 @@ public class Explosion extends Sprite {
     @Override
     public void visibleCountDown() {
         tick++;
-        if (tick % 4 == 0) {
+        if (tick % 5 == 0) {
             frameIndex++;
             if (frameIndex >= frames().length) {
                 visible = false;

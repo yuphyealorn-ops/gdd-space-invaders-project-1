@@ -44,6 +44,9 @@ public class Global {
     public static final String IMG_PLAYER = "src/images/player.png";
     public static final String IMG_PLAYER_SHEET = "src/images/sprites.png";
     public static final String IMG_ENEMY1 = "src/images/Enemy1.png";
+    public static final String IMG_ENEMY_SHEET = "src/images/EnemySprite.png";
+    public static final String IMG_ENEMY_EFFECT = "src/images/EnemySpriteEffect.png";
+    public static final String IMG_POWERUPS = "src/images/powerups.png";
     public static final String IMG_ENEMY_PROJECTILE = "src/images/enemy_projectile.png";
     public static final String IMG_ENEMY_EXPLOSION = "src/images/enemy_explosion.png";
     public static final String IMG_BOSS = "src/images/boss_sprite.png";
@@ -70,4 +73,5 @@ public class Global {
     public static final String SFX_BOSS_FIGHT = "src/audio/boss_fight.wav";
     public static final String SFX_BOSS_DEATH = "src/audio/boss_death.wav";
     public static final String MUSIC_STAGE = "src/audio/scene1.wav";
+    public static final String MUSIC_STAGE2 = "src/audio/scene2.wav";
 }
