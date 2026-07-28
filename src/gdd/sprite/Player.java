@@ -23,6 +23,7 @@ public class Player extends Sprite {
     private int shotLevel = 1;
     private int verticalSpeed;
     private int animTick;
+    private int ultCharge;
 
     public Player() {
         BufferedImage sheet = loadSheet(IMG_PLAYER_SHEET);
@@ -54,6 +55,22 @@ public class Player extends Sprite {
 
     public int getShotLevel() {
         return shotLevel;
+    }
+
+    public void gainCharge(int amount) {
+        ultCharge = Math.min(100, ultCharge + amount);
+    }
+
+    public boolean ultReady() {
+        return ultCharge >= 100;
+    }
+
+    public void resetUlt() {
+        ultCharge = 0;
+    }
+
+    public int getUltCharge() {
+        return ultCharge;
     }
 
     public void resetPosition() {
