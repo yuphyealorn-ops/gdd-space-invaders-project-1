@@ -1,23 +1,27 @@
 package gdd.sprite;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
+import static gdd.Global.*;
 import java.awt.Image;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.util.HashMap;
+import java.util.Map;
 
-// Player laser. Travels right, with an optional vertical component for
-// multi-shot. A piercing variant is the Ultimate: a big beam that passes
-// through every enemy.
+// Player laser (from sprites.png). Points along its travel direction. The
+// piercing variant is the Ultimate: a large accelerating beam (ultimate_shot
+// frames) that passes through every enemy.
 public class Shot extends Sprite {
 
-    private static final int SPEED = 13;
-    private static Image laser;
-    private static Image beam;
+    private static final int SPEED = 12;
+    private static BufferedImage shotBase;
+    private static Image[] ultFrames;
+    private static final Map<String, Image> ROT = new HashMap<>();
 
-    private final int velocityX;
+    private int velocityX;
     private final int velocityY;
     private final boolean piercing;
+    private final int rotDeg;
+    private int animTick;
+    private boolean bossHit;
 
     public Shot(int x, int y) {
         this(x, y, 0, false);
@@ -28,55 +32,65 @@ public class Shot extends Sprite {
     }
 
     public Shot(int x, int y, int velocityY, boolean piercing) {
-        this.velocityX = piercing ? SPEED + 3 : SPEED;
         this.velocityY = velocityY;
         this.piercing = piercing;
-        setImage(piercing ? beam() : laser());
+        this.velocityX = piercing ? 6 : SPEED; // ultimate starts slow then accelerates
+        int deg = (int) Math.round(Math.toDegrees(Math.atan2(velocityY, this.velocityX)));
+        this.rotDeg = ((deg % 360) + 360) % 360;
+        setImage(piercing ? ultFrames()[0] : rotated(shotBase()));
         setX(x);
-        setY(y - (piercing ? getImage().getHeight(null) / 2 : 0));
+        setY(y - getImage().getHeight(null) / 2);
     }
 
     public boolean isPiercing() {
         return piercing;
     }
 
-    private static Image laser() {
-        if (laser == null) {
-            BufferedImage img = new BufferedImage(22, 6, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g = img.createGraphics();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g.setColor(new Color(40, 220, 255, 90));
-            g.fillRoundRect(0, 0, 22, 6, 6, 6);
-            g.setColor(new Color(150, 245, 255));
-            g.fillRoundRect(2, 1, 18, 4, 4, 4);
-            g.setColor(Color.WHITE);
-            g.fillRect(4, 2, 12, 2);
-            g.dispose();
-            laser = img;
-        }
-        return laser;
+    public boolean hasHitBoss() {
+        return bossHit;
     }
 
-    private static Image beam() {
-        if (beam == null) {
-            BufferedImage img = new BufferedImage(120, 46, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g = img.createGraphics();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g.setColor(new Color(255, 210, 90, 70));
-            g.fillRoundRect(0, 4, 120, 38, 20, 20);
-            g.setColor(new Color(255, 235, 150, 180));
-            g.fillRoundRect(0, 13, 120, 20, 14, 14);
-            g.setColor(Color.WHITE);
-            g.fillRoundRect(0, 19, 120, 8, 6, 6);
-            g.dispose();
-            beam = img;
+    public void markBossHit() {
+        bossHit = true;
+    }
+
+    private static BufferedImage shotBase() {
+        if (shotBase == null) {
+            BufferedImage sheet = loadSheet(IMG_PLAYER_SHEET);
+            shotBase = scaleImage(sheet.getSubimage(280, 15, 8, 3), 20, 7); // player_shot, small
         }
-        return beam;
+        return shotBase;
+    }
+
+    private static Image[] ultFrames() {
+        if (ultFrames == null) {
+            BufferedImage sheet = loadSheet(IMG_PLAYER_SHEET);
+            // order: before-leaving (2), accelerate (1), travel (3)
+            int[][] r = {{328, 11, 24, 10}, {354, 11, 23, 10}, {377, 11, 23, 12}};
+            ultFrames = new Image[r.length];
+            for (int i = 0; i < r.length; i++) {
+                ultFrames[i] = scaleImage(sheet.getSubimage(r[i][0], r[i][1], r[i][2], r[i][3]),
+                        r[i][2] * 5, r[i][3] * 5); // large beam
+            }
+        }
+        return ultFrames;
+    }
+
+    private Image rotated(BufferedImage base) {
+        if (rotDeg == 0) {
+            return base;
+        }
+        return ROT.computeIfAbsent(String.valueOf(rotDeg), k -> rotate(base, rotDeg));
     }
 
     @Override
     public void act() {
         x += velocityX;
         y += velocityY;
+        animTick++;
+        if (piercing) {
+            velocityX = Math.min(30, velocityX + 1); // accelerate slow -> fast
+            setImage(ultFrames()[Math.min(2, animTick / 6)]);
+        }
     }
 }

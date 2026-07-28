@@ -3,21 +3,24 @@ package gdd.sprite;
 import static gdd.Global.*;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
+import java.util.HashMap;
+import java.util.Map;
 
-// Enemy projectiles (both travel left toward the player, kept in Scene1's
-// separate enemyBullets list):
-//  - BULLET: fast, 20% damage. Uses EnemySpriteEffect.png (start flash -> travel).
-//  - BOMB:   slow, 30% damage. Uses enemy_projectile.png frames played IN ORDER
-//            once, then fades out after the final frame.
+// Enemy projectiles (travel left toward the player, in Scene1's separate list):
+//  - BULLET: fast, 20% dmg. Small travel sprite from EnemySpriteEffect.png,
+//            rotated to point along its travel direction (fixed at fire time).
+//  - BOMB:   slow, 30% dmg. enemy_projectile.png frames (full size) played in
+//            order once, then fades out after the final frame.
 public class EnemyBullet extends Sprite {
 
     private static Image[] bombFrames;
-    private static Image bulletStart;
-    private static Image bulletTravel;
+    private static BufferedImage travelBase;
+    private static final Map<String, Image> ROT = new HashMap<>();
 
     private final double velocityX;
     private final double velocityY;
     private final boolean bomb;
+    private final int rotDeg;
     private double preciseX;
     private double preciseY;
     private int animTick;
@@ -35,7 +38,9 @@ public class EnemyBullet extends Sprite {
         this.velocityX = velocityX;
         this.velocityY = velocityY;
         this.bomb = bomb;
-        setImage(bomb ? bombFrames()[0] : bulletStart());
+        int deg = (int) Math.round(Math.toDegrees(Math.atan2(velocityY, velocityX)) - 180);
+        this.rotDeg = ((deg % 360) + 360) % 360;
+        setImage(bomb ? bombFrames()[0] : rotatedTravel());
     }
 
     private static Image[] bombFrames() {
@@ -48,35 +53,25 @@ public class EnemyBullet extends Sprite {
             };
             bombFrames = new Image[r.length];
             for (int i = 0; i < r.length; i++) {
-                bombFrames[i] = clip(sheet, r[i][0], r[i][1], r[i][2], r[i][3], 1, false);
+                bombFrames[i] = clip(sheet, r[i][0], r[i][1], r[i][2], r[i][3], 1, false); // full size
             }
         }
         return bombFrames;
     }
 
-    private static Image effect(int x, int y, int w, int h, int targetH) {
-        BufferedImage sheet = loadSheet(IMG_ENEMY_EFFECT);
-        BufferedImage sub = sheet.getSubimage(
-                Math.max(0, Math.min(x, sheet.getWidth() - 1)),
-                Math.max(0, Math.min(y, sheet.getHeight() - 1)),
-                Math.max(1, Math.min(w, sheet.getWidth() - x)),
-                Math.max(1, Math.min(h, sheet.getHeight() - y)));
-        int tw = Math.max(1, sub.getWidth() * targetH / sub.getHeight());
-        return scaleImage(sub, tw, targetH);
+    private static BufferedImage travelBase() {
+        if (travelBase == null) {
+            BufferedImage sheet = loadSheet(IMG_ENEMY_EFFECT);
+            travelBase = scaleImage(sheet.getSubimage(580, 536, 129, 27), 24, 5); // small bullet
+        }
+        return travelBase;
     }
 
-    private static Image bulletStart() {
-        if (bulletStart == null) {
-            bulletStart = effect(311, 508, 194, 83, 40); // bullet starting flash
+    private Image rotatedTravel() {
+        if (rotDeg == 0) {
+            return travelBase();
         }
-        return bulletStart;
-    }
-
-    private static Image bulletTravel() {
-        if (bulletTravel == null) {
-            bulletTravel = effect(580, 536, 129, 27, 20); // bullet travel
-        }
-        return bulletTravel;
+        return ROT.computeIfAbsent(String.valueOf(rotDeg), k -> rotate(travelBase(), rotDeg));
     }
 
     public boolean isPlasma() {
@@ -104,15 +99,15 @@ public class EnemyBullet extends Sprite {
                 setImage(bombFrames()[idx]);
             } else {
                 setImage(bombFrames()[bombFrames().length - 1]);
-                alpha -= 0.03f; // start fading once the sequence finishes
+                alpha -= 0.03f;
                 if (alpha <= 0f) {
                     die();
                 }
             }
         } else {
-            setImage(animTick < 7 ? bulletStart() : bulletTravel());
+            setImage(rotatedTravel());
         }
-        if (x < -70 || y < -70 || y > BOARD_HEIGHT + 70) {
+        if (x < -80 || y < -80 || y > BOARD_HEIGHT + 80) {
             die();
         }
     }
