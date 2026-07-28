@@ -4,37 +4,36 @@ import static gdd.Global.*;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
 
-// Stage-3 boss, clipped from boss_sprite.png (6 forms) and flipped to face the
-// player. Enters from the right, strafes vertically, evolves its form as its
-// health drops. (Boss projectiles are left for the user to implement.)
+// Stage-3 boss from boss_sprites.png (2048x448, four frames in a row). Enters
+// from the right to a hold position, then drifts vertically. (Boss projectiles
+// are left for the user to implement.)
 public class Boss extends Sprite {
 
-    private final Image[] frames = new Image[6];
+    private final Image[] frames = new Image[4];
     private final int maxHp;
     private int hp;
     private double preciseX;
     private double preciseY;
-    private double holdX;
+    private final double holdX;
     private double phase;
     private int tick;
     private boolean entering = true;
 
     public Boss() {
         BufferedImage sheet = loadSheet(IMG_BOSS);
-        int[][] r = {
-            {137, 193, 244, 214}, {560, 215, 268, 164}, {989, 231, 296, 165},
-            {271, 419, 297, 189}, {855, 414, 278, 201}, {358, 664, 288, 201}
-        };
-        for (int i = 0; i < r.length; i++) {
-            frames[i] = clip(sheet, r[i][0], r[i][1], r[i][2], r[i][3], 1, true); // flip to face left
+        int fw = sheet.getWidth() / 4; // 512
+        int fh = sheet.getHeight();    // 448
+        int targetW = 205;
+        int targetH = Math.max(1, fh * targetW / fw);
+        for (int i = 0; i < 4; i++) {
+            frames[i] = scaleImage(sheet.getSubimage(i * fw, 0, fw, fh), targetW, targetH);
         }
         maxHp = 90;
         hp = maxHp;
         setImage(frames[0]);
-        int w = frames[0].getWidth(null);
-        preciseX = BOARD_WIDTH + 60;
-        holdX = BOARD_WIDTH - w - 30;
-        preciseY = BOARD_HEIGHT / 2.0 - frames[0].getHeight(null) / 2.0;
+        preciseX = BOARD_WIDTH + 120;      // 836
+        preciseY = BOARD_HEIGHT / 2.0 - 55; // 295
+        holdX = BOARD_WIDTH - 205;          // 511
         x = (int) preciseX;
         y = (int) preciseY;
     }
@@ -50,23 +49,11 @@ public class Boss extends Sprite {
                 entering = false;
             }
         } else {
-            preciseX = holdX + Math.sin(phase * 0.7) * 24;
+            preciseY = 330 + Math.sin(phase) * 215; // drift between y=115 and y=545
         }
-        preciseY = (BOARD_HEIGHT / 2.0 - getImage().getHeight(null) / 2.0)
-                + Math.sin(phase) * (BOARD_HEIGHT * 0.28);
         x = (int) preciseX;
         y = (int) preciseY;
-        setImage(currentFrame());
-    }
-
-    private Image currentFrame() {
-        if (hp <= maxHp * 0.2) {
-            return frames[5]; // enraged
-        }
-        if (hp <= maxHp * 0.5) {
-            return frames[4]; // armored
-        }
-        return frames[(tick / 14) % 3]; // idle / weapon-deploy cycle
+        setImage(frames[(tick / 12) % 4]);
     }
 
     public boolean hit(int damage) {
