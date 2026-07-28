@@ -6,6 +6,7 @@ public class Global {
     }
 
     public static final int SCALE_FACTOR = 3;
+    public static final int PLAYER_SCALE = 2;
 
     public static final int BOARD_WIDTH = 716;
     public static final int BOARD_HEIGHT = 700;
@@ -31,17 +32,42 @@ public class Global {
     public static final int PLAYER_START_SPEED = 4;
     public static final int PLAYER_MAX_SPEED = 12;
 
+    // Side-scroll gameplay tuning
+    public static final int PLAYER_MAX_HP = 100;
+    public static final int PLAYER_LIVES = 3;
+    public static final int DMG_PLASMA = 30;
+    public static final int DMG_BULLET = 20;
+    public static final int DMG_CONTACT = 20;
+
     // Images
     public static final String IMG_ENEMY = "src/images/alien.png";
     public static final String IMG_PLAYER = "src/images/player.png";
+    public static final String IMG_PLAYER_SHEET = "src/images/sprites.png";
+    public static final String IMG_ENEMY1 = "src/images/Enemy1.png";
+    public static final String IMG_ENEMY_PROJECTILE = "src/images/enemy_projectile.png";
+    public static final String IMG_ENEMY_EXPLOSION = "src/images/enemy_explosion.png";
+    public static final String IMG_BOSS = "src/images/boss_sprite.png";
     public static final String IMG_SHOT = "src/images/shot.png";
     public static final String IMG_EXPLOSION = "src/images/explosion.png";
     public static final String IMG_TITLE = "src/images/TitleScreen.png";
     public static final String IMG_POWERUP_SPEEDUP = "src/images/powerup-s.png";
     public static final String IMG_POWERUP_MULTISHOT = "src/images/powerup-m.png";
-    public static final String IMG_BACKGROUND = "src/images/space-background-v2.png";
 
     // External data files
+    public static final String FONT_MAIN = "src/font/ThaleahFat.ttf";
+    public static final String MAP_STARS = "src/maps/maps.txt";
     public static final String MAP_BACKGROUND_CSV = "src/maps/background.csv";
     public static final String SPAWN_CSV = "src/maps/spawns.csv";
+
+    // Audio cues
+    public static final String SFX_START = "src/audio/start.wav";
+    public static final String SFX_SHOOT = "src/audio/shoot.wav";
+    public static final String SFX_POWERUP = "src/audio/powerup.wav";
+    public static final String SFX_PLAYER_HIT = "src/audio/player_hit.wav";
+    public static final String SFX_EXPLOSION = "src/audio/explosion.wav";
+    public static final String SFX_GAME_OVER = "src/audio/game_over.wav";
+    public static final String SFX_BOSS_HIT = "src/audio/boss_hit.wav";
+    public static final String SFX_BOSS_FIGHT = "src/audio/boss_fight.wav";
+    public static final String SFX_BOSS_DEATH = "src/audio/boss_death.wav";
+    public static final String MUSIC_STAGE = "src/audio/scene1.wav";
 }
